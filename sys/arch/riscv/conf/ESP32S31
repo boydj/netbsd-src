@@ -90,6 +90,8 @@ espwdt*		at fdt?			# watchdog (wdogctl)
 esprtc*		at fdt?			# RTC timer: time of day across resets
 espcrypto*	at fdt?			# AES, SHA, RSA accelerators
 espcmpr*	at fdt?			# analog comparator (envstat)
+espledc*	at fdt?			# LED PWM controllers
+espmcpwm*	at fdt?			# motor control PWM
 pseudo-device	crypto			# /dev/crypto
 pseudo-device	swcrypto		# software algorithms for opencrypto
 

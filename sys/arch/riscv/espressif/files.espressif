@@ -95,6 +95,13 @@ device	espcrypto: opencrypto
 attach	espcrypto at fdt with esp_crypto
 file	arch/riscv/espressif/esp_crypto.c	esp_crypto
 
+# PWM: LED controllers and motor control PWM (pwm(9))
+device	espledc: fdt_pwm
+attach	espledc at fdt with esp_ledc
+device	espmcpwm: fdt_pwm
+attach	espmcpwm at fdt with esp_mcpwm
+file	arch/riscv/espressif/esp_pwm.c		esp_ledc | esp_mcpwm
+
 # Analog comparator
 device	espcmpr: sysmon_envsys
 attach	espcmpr at fdt with esp_cmpr

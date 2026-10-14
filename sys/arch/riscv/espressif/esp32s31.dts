@@ -143,6 +143,55 @@
 				      "ds", "hmac", "ecdsa";
 		};
 
+		/* PWM: LED controllers and motor control PWM */
+		ledc0: pwm@20392000 {
+			compatible = "espressif,esp32s31-ledc";
+			reg = <0x20392000 0x800>;
+			clocks = <&clkrst 21>;
+			resets = <&clkrst 13>;
+			#pwm-cells = <3>;
+		};
+
+		ledc1: pwm@2039c000 {
+			compatible = "espressif,esp32s31-ledc";
+			reg = <0x2039c000 0x800>;
+			clocks = <&clkrst 22>;
+			resets = <&clkrst 14>;
+			#pwm-cells = <3>;
+		};
+
+		mcpwm0: pwm@20381000 {
+			compatible = "espressif,esp32s31-mcpwm";
+			reg = <0x20381000 0x1000>;
+			clocks = <&clkrst 35>;
+			resets = <&clkrst 26>;
+			#pwm-cells = <3>;
+		};
+
+		mcpwm1: pwm@20382000 {
+			compatible = "espressif,esp32s31-mcpwm";
+			reg = <0x20382000 0x1000>;
+			clocks = <&clkrst 36>;
+			resets = <&clkrst 27>;
+			#pwm-cells = <3>;
+		};
+
+		mcpwm2: pwm@20383000 {
+			compatible = "espressif,esp32s31-mcpwm";
+			reg = <0x20383000 0x1000>;
+			clocks = <&clkrst 37>;
+			resets = <&clkrst 28>;
+			#pwm-cells = <3>;
+		};
+
+		mcpwm3: pwm@20384000 {
+			compatible = "espressif,esp32s31-mcpwm";
+			reg = <0x20384000 0x1000>;
+			clocks = <&clkrst 38>;
+			resets = <&clkrst 29>;
+			#pwm-cells = <3>;
+		};
+
 		/* Analog comparator: GPIO37-40, off until configured */
 		comparator@2039a000 {
 			compatible = "espressif,esp32s31-ana-cmpr";

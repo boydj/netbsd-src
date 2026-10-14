@@ -246,6 +246,18 @@ static const struct esp_matrix_func esp_matrix_funcs[] = {
 	{ "pwm1_1b",	-1,  98, 0 },
 	{ "pwm1_2a",	-1,  99, 0 },
 	{ "pwm1_2b",	-1, 100, 0 },
+	{ "pwm2_0a",	-1,  86, 0 },
+	{ "pwm2_0b",	-1,  87, 0 },
+	{ "pwm2_1a",	-1,  88, 0 },
+	{ "pwm2_1b",	-1, 110, 0 },
+	{ "pwm2_2a",	-1, 111, 0 },
+	{ "pwm2_2b",	-1, 112, 0 },
+	{ "pwm3_0a",	-1, 113, 0 },
+	{ "pwm3_0b",	-1, 114, 0 },
+	{ "pwm3_1a",	-1, 115, 0 },
+	{ "pwm3_1b",	-1, 134, 0 },
+	{ "pwm3_2a",	-1, 135, 0 },
+	{ "pwm3_2b",	-1, 136, 0 },
 	{ "twai0_tx",	-1,  80, 0 },
 	{ "twai0_rx",	80,  -1, MF_PU },
 	{ "twai1_tx",	-1,  83, 0 },
@@ -471,6 +483,23 @@ esp_gpio_set_function(u_int pin, const char *name)
 		return EINVAL;
 	mutex_enter(&sc->sc_lock);
 	esp_gpio_route(sc, pin, mf);
+	mutex_exit(&sc->sc_lock);
+	return 0;
+}
+
+/* Invert a pin's matrix output (for active-low PWM). */
+int
+esp_gpio_set_output_invert(u_int pin, bool inv)
+{
+	struct esp_gpio_softc * const sc = esp_gpio_sc;
+
+	if (sc == NULL)
+		return ENXIO;
+	if (!esp_gpio_usable(sc, pin))
+		return EBUSY;
+	mutex_enter(&sc->sc_lock);
+	esp_gpio_rmw(sc, sc->sc_gpio, GPIO_FUNC_OUT_SEL(pin), GPIO_OUT_INV_SEL,
+	    inv ? GPIO_OUT_INV_SEL : 0);
 	mutex_exit(&sc->sc_lock);
 	return 0;
 }

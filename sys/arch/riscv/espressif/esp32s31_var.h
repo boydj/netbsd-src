@@ -40,6 +40,7 @@ bool	esp_clic_attached(void);
 
 /* esp_gpio.c */
 int	esp_gpio_set_function(u_int, const char *);
+int	esp_gpio_set_output_invert(u_int, bool);
 
 /* esp_systimer.c */
 void	esp_systimer_early_init(bus_space_tag_t, bus_addr_t);
