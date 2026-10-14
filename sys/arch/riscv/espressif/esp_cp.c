@@ -461,19 +461,26 @@ espcp_shutdown(void *arg)
 }
 
 /* ------------------------------------------------------------------------
- * The firmware's log: complete lines go to the system log.
+ * The firmware's log: complete lines go to the message buffer (dmesg),
+ * and errors to the system log as well.  ESP-IDF's lines start with
+ * "E (time)", "W (time)", "I (time)" and so on.
  */
 
 static void
 espcp_log_line(struct espcp_softc *sc)
 {
+	const char *line = sc->sc_logline;
+
 	sc->sc_logline[sc->sc_loglen] = '\0';
 	if (sc->sc_loglen > 0) {
-		if (sc->sc_running)
-			log(LOG_INFO, "%s: %s\n", device_xname(sc->sc_dev),
-			    sc->sc_logline);
+		if (line[0] == 'E' && line[1] == ' ' && line[2] == '(')
+			log(LOG_ERR, "%s: %s\n", device_xname(sc->sc_dev),
+			    line);
+		else if (sc->sc_running)
+			printf_tolog("%s: %s\n", device_xname(sc->sc_dev),
+			    line);
 		else
-			aprint_verbose_dev(sc->sc_dev, "%s\n", sc->sc_logline);
+			aprint_verbose_dev(sc->sc_dev, "%s\n", line);
 	}
 	sc->sc_loglen = 0;
 }
