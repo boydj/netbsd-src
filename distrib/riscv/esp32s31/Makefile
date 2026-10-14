@@ -9,7 +9,7 @@
 .include "${NETBSDSRCDIR}/distrib/common/Makefile.distrib"
 
 IMAGE=		esp32s31-root.fs
-IMAGESIZE=	6144k
+IMAGESIZE=	4096k
 MAKEFS_FLAGS+=	-o density=4096 -f 600
 
 WARNS=		1

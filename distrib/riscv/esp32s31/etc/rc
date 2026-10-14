@@ -51,6 +51,13 @@ ifconfig lo0 inet 127.0.0.1 up
 # (some emulators' user-mode networking) would make it drop the lease.
 sysctl -qw net.inet.ip.dad_count=0
 mkdir -p /var/db/dhcpcd /var/run/dhcpcd /var/spool/lock
+# Wi-Fi: join the network in /etc/espwifi.conf (ssid="..." psk="..."), if
+# there is one; otherwise see espwifictl(8).  The link comes up once
+# associated, and dhcpcd takes it from there.
+if [ -f /etc/espwifi.conf ] && ifconfig espwifi0 >/dev/null 2>&1; then
+	(. /etc/espwifi.conf && ifconfig espwifi0 up &&
+	    espwifictl join "$ssid" "${psk:--}")
+fi
 dhcpcd -q -b
 
 echo
