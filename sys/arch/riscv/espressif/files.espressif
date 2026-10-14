@@ -90,6 +90,11 @@ device	espsensor: sysmon_envsys
 attach	espsensor at espcp
 file	arch/riscv/espressif/esp_cpsensor.c	espsensor
 
+# Crypto accelerators: AES (aes(9)), SHA and RSA (opencrypto)
+device	espcrypto: opencrypto
+attach	espcrypto at fdt with esp_crypto
+file	arch/riscv/espressif/esp_crypto.c	esp_crypto
+
 # Watchdog (timer group 1)
 device	espwdt: sysmon_wdog
 attach	espwdt at fdt with esp_wdt

@@ -88,6 +88,9 @@ espxiproot*	at fdt?			# root file system in SPI flash
 espnor*	at fdt?			# writable SPI flash partition (/persist)
 espwdt*		at fdt?			# watchdog (wdogctl)
 esprtc*		at fdt?			# RTC timer: time of day across resets
+espcrypto*	at fdt?			# AES, SHA, RSA accelerators
+pseudo-device	crypto			# /dev/crypto
+pseudo-device	swcrypto		# software algorithms for opencrypto
 
 # I2C and SPI: pins through the GPIO matrix, see sysctl hw.espgpio0
 espi2c*		at fdt?			# I2C0, I2C1

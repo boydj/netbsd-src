@@ -126,6 +126,23 @@
 			interrupts = <11 4>;
 		};
 
+		/*
+		 * AES, SHA and RSA accelerators.  (The ECC accelerator is the
+		 * co-processor's: its Bluetooth controller uses it.)
+		 */
+		crypto@20508000 {
+			compatible = "espressif,esp32s31-crypto";
+			reg = <0x20508000 0x3000>;
+			clocks = <&clkrst 25>, <&clkrst 26>, <&clkrst 27>,
+				 <&clkrst 28>;
+			clock-names = "crypto", "aes", "sha", "rsa";
+			resets = <&clkrst 17>, <&clkrst 30>, <&clkrst 18>,
+				 <&clkrst 19>, <&clkrst 20>, <&clkrst 31>,
+				 <&clkrst 32>, <&clkrst 33>;
+			reset-names = "crypto", "sec", "aes", "sha", "rsa",
+				      "ds", "hmac", "ecdsa";
+		};
+
 		/* Main system watchdog of timer group 1 */
 		watchdog@20581000 {
 			compatible = "espressif,esp32s31-mwdt";
