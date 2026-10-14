@@ -835,6 +835,12 @@ dwc_mmc_init(struct dwc_mmc_softc *sc)
 	uint32_t val;
 
 	val = MMC_READ(sc, DWC_MMC_VERID);
+	if (val == 0 || val == 0xffffffff) {
+		/* Not clocked, held in reset, or not there (emulators). */
+		aprint_error_dev(sc->sc_dev, "no controller (VERID %#x)\n",
+		    val);
+		return ENXIO;
+	}
 	sc->sc_verid = __SHIFTOUT(val, DWC_MMC_VERID_ID);
 
 	if (sizeof(bus_addr_t) > 4) {
