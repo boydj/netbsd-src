@@ -29,6 +29,8 @@
  * POSSIBILITY OF SUCH DAMAGE.
  */
 
+#include "opt_riscv_clic.h"
+
 #include <machine/asm.h>
 #include "assym.h"
 
@@ -51,6 +53,121 @@ _C_LABEL(ipl_sie_map):
 	.word	SIE_SEIE | SIE_STIE | SIE_SSIE		/* IPL_HIGH */
 
 
+#ifdef RISCV_CLIC
+/*
+ * CLIC-mode harts have no sie/sip, so per-level masking is not available.
+ * All hardware interrupts are at IPL_VM or above, so IPL_VM and higher are
+ * implemented by clearing sstatus.SIE.  Interrupts are re-enabled when the
+ * IPL drops below IPL_VM, unless we are still inside a hardware interrupt
+ * handler (which returns with sret, restoring SIE from the trapframe).
+ */
+ENTRY_NP(splx)
+	// a0 = new IPL
+	PTR_L	a3, L_CPU(tp)		// get curcpu()
+	INT_L	t0, CI_CPL(a3)		// get current IPL
+	bge	a0, t0, 2f		// not lowering? nothing to do
+
+	INT_S	a0, CI_CPL(a3)		// change IPL
+	li	t1, IPL_VM
+	bge	a0, t1, 2f		// still >= IPL_VM, keep SIE clear
+	INT_L	t1, CI_INTR_DEPTH(a3)
+	bnez	t1, 1f			// in an interrupt handler, keep SIE
+	csrsi	sstatus, SR_SIE		// enable interrupts
+1:
+#ifdef __HAVE_FAST_SOFTINTS
+	INT_L	t4, CI_SOFTINTS(a3)	// get softint mask
+	srl	t4, t4, a0		// see what softints are pending.
+	beqz	t4, 2f			// none, just return
+	tail	_C_LABEL(softint_deliver)
+#endif /* __HAVE_FAST_SOFTINTS */
+2:
+	ret
+END(splx)
+
+
+ENTRY_NP(spl0)
+	PTR_L	a3, L_CPU(tp)		// get curcpu()
+	INT_S	zero, CI_CPL(a3)	// set current IPL to IPL_NONE
+	INT_L	t1, CI_INTR_DEPTH(a3)
+	bnez	t1, 1f
+	csrsi	sstatus, SR_SIE		// enable interrupts
+1:
+#ifdef __HAVE_FAST_SOFTINTS
+	tail	_C_LABEL(softint_deliver)
+#else /* __HAVE_FAST_SOFTINTS */
+	ret
+#endif /* __HAVE_FAST_SOFTINTS */
+END(spl0)
+
+
+ENTRY(splintr)
+	// Not used with a CLIC; report nothing pending.
+	LONG_S	zero, 0(a0)
+	li	a0, IPL_NONE
+	ret
+END(splintr)
+
+
+ENTRY_NP(splsoftclock)
+	li	t1, IPL_SOFTCLOCK
+	j	_splraise
+END(splsoftclock)
+
+
+ENTRY_NP(splsoftbio)
+	li	t1, IPL_SOFTBIO
+	j	_splraise
+END(splsoftbio)
+
+
+ENTRY_NP(splsoftnet)
+	li	t1, IPL_SOFTNET
+	j	_splraise
+END(splsoftnet)
+
+
+ENTRY_NP(splsoftserial)
+	li	t1, IPL_SOFTSERIAL
+	j	_splraise
+END(splsoftserial)
+
+
+ENTRY_NP(splvm)
+	li	t1, IPL_VM
+	j	_splraise
+END(splvm)
+
+
+ENTRY_NP(splsched)
+	li	t1, IPL_SCHED
+	j	_splraise
+END(splsched)
+
+ENTRY_NP(splhigh)
+	li	t1, IPL_HIGH
+	j	_splraise
+END(splhigh)
+
+
+ENTRY_NP(splraise)
+	// a0 = new higher IPL
+	mv	t1, a0
+
+_splraise:
+	// t1 = new higher IPL
+	PTR_L	a3, L_CPU(tp)		// get curcpu()
+	INT_L	a0, CI_CPL(a3)		// get current IPL (return value)
+	bge	a0, t1, 2f		// already at same or higher?
+	li	t2, IPL_VM
+	blt	t1, t2, 1f		// raising to a soft IPL only
+	csrci	sstatus, SR_SIE		// disable interrupts first
+1:
+	INT_S	t1, CI_CPL(a3)		// change IPL
+2:
+	ret
+END(splraise)
+
+#else /* !RISCV_CLIC */
 ENTRY_NP(splx)
 	// a0 = new IPL
 	PTR_L	a3, L_CPU(tp)		// get curcpu()
@@ -197,3 +314,5 @@ _splraise:
 2:
 	ret
 END(splraise)
+
+#endif /* RISCV_CLIC */

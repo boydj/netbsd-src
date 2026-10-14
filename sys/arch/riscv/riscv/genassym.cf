@@ -55,6 +55,7 @@ include <riscv/sbi.h>
 
 define	SR_SUM		SR_SUM
 define	SR_SPP		SR_SPP
+define	SR_SPIE		SR_SPIE
 define	SR_SIE		SR_SIE
 define	SR_FS		SR_FS
 # define	SR_PS		SR_PS

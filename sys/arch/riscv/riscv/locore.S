@@ -32,6 +32,7 @@
 #include "opt_console.h"
 #include "opt_multiprocessor.h"
 #include "opt_riscv_debug.h"
+#include "opt_riscv_clic.h"
 
 #include <machine/asm.h>
 #include "assym.h"
@@ -79,8 +80,17 @@
  *    a1 is pointer to dtb (PA)
  */
 ENTRY_NP(start)
+#ifndef RISCV_CLIC
 	csrw	sie, zero		// disable interrupts
 	csrw	sip, zero		// clear any pending
+#else
+	/*
+	 * In CLIC mode sie/sip are not implemented (accesses trap to the
+	 * SBI firmware, which emulates them).  Interrupts are gated by
+	 * sstatus.SIE alone, which the SBI cleared for us.
+	 */
+	csrci	sstatus, SR_SIE
+#endif
 
 	li	s0, SR_FS
 	csrc	sstatus, s0		// disable FP
@@ -355,7 +365,11 @@ ENTRY_NP(start)
 	sfence.vma
 	csrw	satp, t0
 
+#ifdef RISCV_CLIC
+	.p2align 6			// CLIC mode: stvec[5:0] are forced to 0
+#else
 	.align 2
+#endif
 	.global vstart
 vstart:
 	// MMU is on!

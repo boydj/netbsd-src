@@ -10,6 +10,10 @@ defparam opt_console.h		CONSADDR
 # RISC-V specific debug options
 defflag  opt_riscv_debug.h	VERBOSE_INIT_RISCV
 
+# Harts whose interrupts are delivered by a CLIC (Smclic/Ssclic) running in
+# CLIC mode rather than through sie/sip (e.g. Espressif ESP32-S31).
+defflag  opt_riscv_clic.h	RISCV_CLIC
+
 defflag	opt_ddb.h		DDB_TRACE
 
 device	mainbus {}: fdt

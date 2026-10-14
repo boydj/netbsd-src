@@ -31,6 +31,8 @@
 
 #include "opt_ddb.h"
 
+#include "opt_riscv_clic.h"
+
 #include <machine/asm.h>
 #include "assym.h"
 
@@ -219,6 +221,14 @@ END(cpu_fast_switchto)
  * and interrupts.
  */
 
+#ifdef RISCV_CLIC
+	/*
+	 * In CLIC mode the low 6 bits of stvec are forced to zero, so the
+	 * handler must be 64-byte aligned.
+	 */
+	.text
+	.p2align 6
+#endif
 ENTRY_NP(cpu_exception_handler)
 	csrrw	tp, sscratch, tp	// swap scratch and thread pointer
 	beqz	tp, .Lexception_kernel	//   tp == 0, already on kernel stack
@@ -302,6 +312,14 @@ ENTRY_NP(cpu_exception_handler)
 	csrr	a1, sepc		// get exception pc
 	csrr	a2, sstatus		// get status
 	csrr	a3, scause		// get cause
+#ifdef RISCV_CLIC
+	/*
+	 * CLIC mode scause carries extra fields (inhv, spp, spie, spil) in
+	 * bits [30:12].  Keep only the interrupt flag and the exception code.
+	 */
+	li	a4, 0x80000fff
+	and	a3, a3, a4
+#endif
 
 	REG_S	a1, TF_PC(sp)
 	REG_S	a2, TF_SR(sp)
@@ -354,6 +372,18 @@ ALTENTRY(exception_kernexit)
 	REG_L	t5, TF_T5(sp)		// restore t5
 	REG_L	t6, TF_T6(sp)		// restore t6
 
+#ifdef RISCV_CLIC
+	/*
+	 * CLIC: sret reloads the S-mode interrupt level (sil) from
+	 * scause.spil, but (at least on the ESP32-S31) only when scause is
+	 * interrupt-type.  Always return with an interrupt-type scause and
+	 * spil = 0 so the interrupt level never stays raised.  This also
+	 * clobbers the scause.spp/spie aliases of sstatus.spp/spie, which
+	 * the sstatus write below restores.
+	 */
+	li	t0, 0x80000000
+	csrw	scause, t0
+#endif
 	REG_L	t0, TF_PC(sp)		// fetch exception PC
 	REG_L	t1, TF_SR(sp)		// fetch status
 
@@ -451,6 +481,28 @@ trap_doast:
  */
 
 intr_handler:
+#ifdef RISCV_CLIC
+	/*
+	 * Taking a CLIC interrupt raised the S-mode interrupt level (sil)
+	 * to the level of this interrupt; until it is lowered, no other
+	 * interrupt of the same level can be taken, even with SIE set.  sil
+	 * can only be lowered by sret, so sret to the next instruction with
+	 * an interrupt-type scause whose spil is 0, staying in S-mode with
+	 * SIE clear.  From here on interrupts are masked by sstatus.SIE (and
+	 * thus by spl) only.  sepc/sstatus/scause are already saved in the
+	 * trapframe; a0-a3 and t1 survive the sret.
+	 */
+	li	t0, SR_SPIE
+	csrc	sstatus, t0		// SPIE = 0: SIE stays clear after sret
+	li	t0, SR_SPP
+	csrs	sstatus, t0		// SPP = S: stay in supervisor mode
+	li	t0, 0x90000000		// interrupt=1, spp=1, spie=0, spil=0
+	csrw	scause, t0
+	lla	t0, 1f
+	csrw	sepc, t0
+	sret
+1:
+#endif
 	beqz	t1, intr_user
 	PTR_LA	ra, exception_kernexit
 	tail	_C_LABEL(cpu_intr)

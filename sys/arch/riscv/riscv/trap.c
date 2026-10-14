@@ -29,6 +29,8 @@
  * POSSIBILITY OF SUCH DAMAGE.
  */
 
+#include "opt_riscv_clic.h"
+
 #include <sys/cdefs.h>
 
 #define	__PMAP_PRIVATE
@@ -587,6 +589,10 @@ cpu_trap(struct trapframe *tf, register_t epc, register_t status,
 	KASSERT(__SHIFTOUT(tf->tf_sr, SR_SIE) == 0);
 
 	/* We can allow interrupts now */
+#ifdef RISCV_CLIC
+	/* sstatus.SIE implements IPL_VM and above */
+	if (curcpu()->ci_cpl < IPL_VM && curcpu()->ci_intr_depth == 0)
+#endif
 	csr_sstatus_set(SR_SIE);
 
 	if (__predict_true(fault_mask & FAULT_TRAP_MASK)) {
