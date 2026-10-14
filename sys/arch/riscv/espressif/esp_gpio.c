@@ -33,8 +33,9 @@
  * (function 1 = the GPIO matrix) plus its electrical settings.  Through the
  * GPIO matrix any peripheral signal can reach any pad: an output pad selects
  * its source signal, an input signal selects its pad.  The RGMII receive and
- * clock pads (GPIO13-19) can instead be handed to the EMAC directly (the
- * "CNNT" dedicated path), with their own pad registers.
+ * clock pads (GPIO13-19) and the SD slot 0 pads (GPIO20-25) can instead be
+ * handed to the EMAC or the SD host directly (the "CNNT" dedicated path),
+ * with their own pad registers.
  *
  * This driver provides pin configurations for the device tree ("pinmux"
  * cells as in Espressif's bindings: pin << 16 | function), GPIO lines for
@@ -108,35 +109,57 @@ __KERNEL_RCSID(0, "$NetBSD$");
 #define	 CNNT_FUN_WPU		__BIT(7)
 #define	 CNNT_FUN_WPD		__BIT(6)
 #define	CNNT_CTRL		0x3f4
+#define	 CNNT_SDIO_DED_SEL	__BIT(0)
 #define	 CNNT_GMAC_DED_SEL	__BIT(1)
 #define	CNNT_GMAC_FIRST		13
 #define	CNNT_GMAC_LAST		19
+#define	CNNT_SDIO_FIRST		20
+#define	CNNT_SDIO_LAST		25
 
 /* Matrix signal numbers */
 #define	SIG_GMII_MDI_IN		107
 #define	SIG_GMII_MDC_OUT	108
 #define	SIG_GMII_MDO_OUT	109
+#define	SIG_SD_CARD_DETECT_N_1	126	/* slot 0 */
+#define	SIG_SD_CARD_WRITE_PRT_1	130
+#define	GPIO_MATRIX_CONST_ZERO	0xc0	/* IN_SEL value: tie the signal low */
 
 /* Function ids of the "pinmux" cells (Espressif dt-bindings) */
 #define	FUNC_GMAC		4
 #define	FUNC_GMII_MDC		5
 #define	FUNC_GMII_MDIO		6
+#define	FUNC_SDIO		7	/* not in Espressif's bindings yet */
 
-enum esp_pad_owner { OWNER_IOMUX, OWNER_CNNT_GMAC };
 
 struct esp_pin_function {
 	int	pf_iomux;	/* IO_MUX function, or -1 */
 	int	pf_in;		/* matrix input signal, or -1 */
 	int	pf_out;		/* matrix output signal, or -1 */
-	bool	pf_gmac;	/* GPIO13-19 go to the EMAC directly */
+	int	pf_ded;		/* CNNT dedicated path, or 0 */
 };
 
 static const struct esp_pin_function esp_pin_functions[] = {
-	[FUNC_GMAC] = { IOMUX_FUNC_GMAC, -1, -1, true },
-	[FUNC_GMII_MDC] = { IOMUX_FUNC_GPIO, -1, SIG_GMII_MDC_OUT, false },
+	[FUNC_GMAC] = { IOMUX_FUNC_GMAC, -1, -1, CNNT_GMAC_DED_SEL },
+	[FUNC_GMII_MDC] = { IOMUX_FUNC_GPIO, -1, SIG_GMII_MDC_OUT, 0 },
 	[FUNC_GMII_MDIO] = { IOMUX_FUNC_GPIO, SIG_GMII_MDI_IN,
-			     SIG_GMII_MDO_OUT, false },
+			     SIG_GMII_MDO_OUT, 0 },
+	/* SD slot 0: CLK, CMD and DAT0-3 on their dedicated pads */
+	[FUNC_SDIO] = { IOMUX_FUNC_GPIO, -1, -1, CNNT_SDIO_DED_SEL },
 };
+
+/* Is the pin one of the dedicated pads of this path? */
+static bool
+esp_gpio_dedicated(int ded, u_int pin)
+{
+	switch (ded) {
+	case CNNT_GMAC_DED_SEL:
+		return pin >= CNNT_GMAC_FIRST && pin <= CNNT_GMAC_LAST;
+	case CNNT_SDIO_DED_SEL:
+		return pin >= CNNT_SDIO_FIRST && pin <= CNNT_SDIO_LAST;
+	default:
+		return false;
+	}
+}
 
 struct esp_gpio_softc {
 	device_t		sc_dev;
@@ -270,11 +293,22 @@ esp_gpio_set_config(device_t dev, const void *data, size_t len)
 		if (pf->pf_out >= 0)
 			WR(sc, sc_gpio, GPIO_FUNC_OUT_SEL(pin), pf->pf_out);
 
-		if (pf->pf_gmac && pin >= CNNT_GMAC_FIRST &&
-		    pin <= CNNT_GMAC_LAST) {
-			/* The EMAC takes the pad: CNNT pad register. */
-			esp_gpio_rmw(sc, sc->sc_cnnt, CNNT_CTRL, 0,
-			    CNNT_GMAC_DED_SEL);
+		if (esp_gpio_dedicated(pf->pf_ded, pin)) {
+			/* The peripheral takes the pad: CNNT pad register. */
+			esp_gpio_rmw(sc, sc->sc_cnnt, CNNT_CTRL, 0, pf->pf_ded);
+			if (pf->pf_ded == CNNT_SDIO_DED_SEL) {
+				/*
+				 * Slot 0 has no card-detect or write-protect
+				 * pads: say "card present, writable", as
+				 * Espressif's driver does.
+				 */
+				WR(sc, sc_gpio,
+				    GPIO_FUNC_IN_SEL(SIG_SD_CARD_DETECT_N_1),
+				    GPIO_MATRIX_CONST_ZERO | GPIO_SIG_IN_SEL);
+				WR(sc, sc_gpio,
+				    GPIO_FUNC_IN_SEL(SIG_SD_CARD_WRITE_PRT_1),
+				    GPIO_MATRIX_CONST_ZERO | GPIO_SIG_IN_SEL);
+			}
 			esp_gpio_rmw(sc, sc->sc_cnnt, CNNT_PAD(pin),
 			    CNNT_FUN_IE | CNNT_FUN_WPU | CNNT_FUN_WPD |
 			    (drv >= 0 ? CNNT_FUN_DRV : 0),

@@ -93,6 +93,11 @@ awge*		at fdt?
 mcommphy*	at mii? phy ?
 ukphy*		at mii? phy ?
 
+# SD/MMC: DesignWare MSHC, microSD on slot 0
+dwcmmc*		at fdt?
+sdmmc*		at sdmmcbus?
+ld*		at sdmmc?
+
 # USB host: DesignWare OTG-HS in host mode
 espusbphy*	at fdt? pass 3		# USB 2.0 PHY
 dwctwo*		at fdt?

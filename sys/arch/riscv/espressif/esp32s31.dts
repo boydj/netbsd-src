@@ -167,6 +167,19 @@
 				bias-disable;
 				drive-strength = <20>;
 			};
+
+			/* SD slot 0: function 7 is the dedicated SDIO path */
+			sdmmc_pins: sdmmc-pins {
+				pinmux = <0x140007>,	/* GPIO20-23 DAT0-3 */
+					 <0x150007>,
+					 <0x160007>,
+					 <0x170007>,
+					 <0x180007>,	/* GPIO24 CLK */
+					 <0x190007>;	/* GPIO25 CMD */
+				input-enable;
+				bias-pull-up;
+				drive-strength = <20>;
+			};
 		};
 
 		/*
@@ -227,6 +240,27 @@
 			reg = <0x20391000 0x1000>;
 			interrupt-parent = <&intmtx>;
 			interrupts = <2 4>;
+		};
+
+		/*
+		 * SD/MMC host (DesignWare MSHC).  The dev board's microSD
+		 * socket is on slot 0, the dedicated pads GPIO20-25, at
+		 * 3.3V; there is no card-detect line.
+		 */
+		sdmmc: mmc@20342000 {
+			compatible = "espressif,esp32s31-dw-mshc", "snps,dw-mshc";
+			reg = <0x20342000 0x1000>;
+			interrupt-parent = <&intmtx>;
+			interrupts = <3 4>;
+			clocks = <&clkrst 11>, <&clkrst 12>;
+			clock-names = "biu", "ciu";
+			resets = <&clkrst 5>;
+			pinctrl-names = "default";
+			pinctrl-0 = <&sdmmc_pins>;
+			bus-width = <4>;
+			max-frequency = <50000000>;
+			cap-sd-highspeed;
+			broken-cd;
 		};
 
 		/* HP_ALIVE_SYS: USB PHY power and line state, among others */

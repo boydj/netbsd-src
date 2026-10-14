@@ -33,6 +33,8 @@
  * "connectivity" block: EMAC, USB OTG-HS, SDIO).  Clock and reset ids are
  * those of Espressif's device tree bindings (dt-bindings/clock/esp32s31.h,
  * dt-bindings/reset/esp32s31.h), so device trees can use the same cells.
+ * Espressif's bindings have no SD/MMC host yet; its clocks and reset use
+ * the next free ids (clocks 11 and 12, reset 5).
  *
  *	clkrst: clock-controller@20587000 {
  *		compatible = "espressif,esp32s31-clkrst";
@@ -64,18 +66,37 @@ __KERNEL_RCSID(0, "$NetBSD$");
 #define	CLK_USB_OTGHS_BUS	8
 #define	CLK_USB_OTGHS_PHYREF	9
 #define	CLK_EMAC_PTP		10
-#define	CLK_NUM			11
+#define	CLK_SDMMC_SYS		11	/* SD/MMC host bus clock ("biu") */
+#define	CLK_SDIO_LS		12	/* SD/MMC card clock source ("ciu") */
+#define	CLK_NUM			13
 
 /* Reset ids */
 #define	RST_IOMUX		0
 #define	RST_EMAC		3
 #define	RST_USB_OTGHS		4
-#define	RST_NUM			5
+#define	RST_SDMMC		5
+#define	RST_NUM			6
 
 /* HP_SYS_CLKRST */
 #define	HP_USB_OTGHS_CTRL0	0x0ac
 #define	 USB_OTGHS_APB_CLK_EN	__BIT(0)
 #define	 USB_OTGHS_SYS_CLK_EN	__BIT(1)
+#define	HP_SDIO_HOST_CTRL0	0x0c0
+#define	 SDMMC_SYS_CLK_EN	__BIT(0)
+#define	 SDIO_HS_MODE		__BIT(1)
+#define	 SDIO_LS_CLK_SRC_SEL	__BIT(2)	/* 0: MPLL */
+#define	 SDIO_LS_CLK_EN		__BIT(3)
+#define	HP_SDIO_HOST_FUNC_CTRL0	0x0c4
+#define	 SDIO_LS_CLK_EDGE_CFG_UPDATE __BIT(0)
+#define	 SDIO_LS_CLK_EDGE_L	__BITS(4, 1)
+#define	 SDIO_LS_CLK_EDGE_H	__BITS(8, 5)
+#define	 SDIO_LS_CLK_EDGE_N	__BITS(12, 9)
+#define	 SDIO_LS_SLF_CLK_EDGE_SEL __BITS(15, 13)
+#define	 SDIO_LS_DRV_CLK_EDGE_SEL __BITS(18, 16)
+#define	 SDIO_LS_SAM_CLK_EDGE_SEL __BITS(21, 19)
+#define	 SDIO_LS_SLF_CLK_EN	__BIT(22)
+#define	 SDIO_LS_DRV_CLK_EN	__BIT(23)
+#define	 SDIO_LS_SAM_CLK_EN	__BIT(24)
 #define	HP_EMAC_CTRL0		0x0c8
 #define	 EMAC_SYS_CLK_EN	__BIT(0)
 #define	HP_IOMUX_CTRL0		0x15c
@@ -87,6 +108,8 @@ __KERNEL_RCSID(0, "$NetBSD$");
 #define	CNNT_USB_OTG20_CTRL	0x030
 #define	 USB_OTG20_PHYREF_CLK_EN __BIT(27)
 #define	 USB_OTGHS_RST_EN	(__BIT(29) | __BIT(30) | __BIT(31))
+#define	CNNT_HP_SDMMC_CTRL	0x038
+#define	 SDMMC_RST_EN		__BIT(30)
 #define	CNNT_HP_EMAC_CTRL	0x03c
 #define	 EMAC_RST_EN		__BIT(1)
 #define	CNNT_HP_EMAC_REF_CTRL	0x040
@@ -107,6 +130,7 @@ struct esp_clk {
 	uint32_t	ec_gate;
 	uint32_t	ec_div;		/* divider field (value = div - 1) */
 	uint32_t	ec_mux;		/* parent select field, set to 0 */
+	bool		ec_sdio;	/* the SD card clock edge generator */
 };
 
 struct esp_rst {
@@ -147,12 +171,20 @@ static const struct esp_clk esp_clks[CLK_NUM] = {
 	    CNNT_USB_OTG20_CTRL, USB_OTG20_PHYREF_CLK_EN, 0, 0),
 	CLK(CLK_EMAC_PTP, "emac_ptp", MAP_CNNT, PARENT_XTAL,
 	    CNNT_HP_EMAC_PTP_CTRL, EMAC_PTP_REF_CLK_EN, 0, 0),
+	CLK(CLK_SDMMC_SYS, "sdmmc_sys", MAP_HP, PARENT_XTAL,
+	    HP_SDIO_HOST_CTRL0, SDMMC_SYS_CLK_EN, 0, 0),
+	[CLK_SDIO_LS] = { .ec_clk = { .name = "sdio_ls" }, .ec_map = MAP_HP,
+			  .ec_parent = PARENT_MPLL, .ec_reg = HP_SDIO_HOST_CTRL0,
+			  .ec_gate = SDIO_LS_CLK_EN,
+			  .ec_mux = SDIO_LS_CLK_SRC_SEL | SDIO_HS_MODE,
+			  .ec_sdio = true },
 };
 
 static const struct esp_rst esp_rsts[RST_NUM] = {
 	[RST_IOMUX] = { MAP_HP, HP_IOMUX_CTRL0, IOMUX_RST_EN },
 	[RST_EMAC] = { MAP_CNNT, CNNT_HP_EMAC_CTRL, EMAC_RST_EN },
 	[RST_USB_OTGHS] = { MAP_CNNT, CNNT_USB_OTG20_CTRL, USB_OTGHS_RST_EN },
+	[RST_SDMMC] = { MAP_CNNT, CNNT_HP_SDMMC_CTRL, SDMMC_RST_EN },
 };
 
 static const struct device_compatible_entry compat_data[] = {
@@ -206,10 +238,60 @@ esp_clk_get_rate(void *priv, struct clk *clk)
 	struct esp_clk * const ec = (struct esp_clk *)clk;
 	const u_int prate = sc->sc_parent_rate[ec->ec_parent];
 
+	if (ec->ec_sdio) {
+		const uint32_t f = esp_clkrst_read(sc, MAP_HP,
+		    HP_SDIO_HOST_FUNC_CTRL0);
+
+		if ((esp_clkrst_read(sc, MAP_HP, HP_SDIO_HOST_CTRL0) &
+		    SDIO_HS_MODE) != 0)
+			return prate;
+		return prate / (__SHIFTOUT(f, SDIO_LS_CLK_EDGE_N) + 1);
+	}
 	if (ec->ec_div == 0)
 		return prate;
 	return prate / (__SHIFTOUT(esp_clkrst_read(sc, ec->ec_map, ec->ec_reg),
 	    ec->ec_div) + 1);
+}
+
+/*
+ * The SD card clock comes from an edge generator dividing MPLL by 2..16;
+ * the host's own CLKDIV divides further.  Pick the smallest divider that
+ * doesn't exceed the rate asked for.
+ */
+static int
+esp_clk_sdio_set_rate(struct esp_clkrst_softc *sc, u_int prate, u_int rate)
+{
+	u_int div;
+
+	div = howmany(prate, rate);
+	div = MAX(div, 2);
+	div = MIN(div, 16);
+	esp_clkrst_update(sc, MAP_HP, HP_SDIO_HOST_CTRL0, SDIO_HS_MODE, 0);
+	esp_clkrst_update(sc, MAP_HP, HP_SDIO_HOST_FUNC_CTRL0,
+	    SDIO_LS_CLK_EDGE_H | SDIO_LS_CLK_EDGE_N | SDIO_LS_CLK_EDGE_L,
+	    __SHIFTIN(div / 2 - 1, SDIO_LS_CLK_EDGE_H) |
+	    __SHIFTIN(div - 1, SDIO_LS_CLK_EDGE_N) |
+	    __SHIFTIN(div - 1, SDIO_LS_CLK_EDGE_L));
+	esp_clkrst_update(sc, MAP_HP, HP_SDIO_HOST_FUNC_CTRL0, 0,
+	    SDIO_LS_CLK_EDGE_CFG_UPDATE);
+	esp_clkrst_update(sc, MAP_HP, HP_SDIO_HOST_FUNC_CTRL0,
+	    SDIO_LS_CLK_EDGE_CFG_UPDATE, 0);
+	return 0;
+}
+
+static void
+esp_clk_sdio_enable(struct esp_clkrst_softc *sc)
+{
+	/* Drive on the falling edge, sample and feed back on the rising. */
+	esp_clkrst_update(sc, MAP_HP, HP_SDIO_HOST_FUNC_CTRL0,
+	    SDIO_LS_DRV_CLK_EDGE_SEL | SDIO_LS_SAM_CLK_EDGE_SEL |
+	    SDIO_LS_SLF_CLK_EDGE_SEL,
+	    SDIO_LS_DRV_CLK_EN | SDIO_LS_SAM_CLK_EN | SDIO_LS_SLF_CLK_EN |
+	    __SHIFTIN(1, SDIO_LS_DRV_CLK_EDGE_SEL));
+	esp_clkrst_update(sc, MAP_HP, HP_SDIO_HOST_FUNC_CTRL0, 0,
+	    SDIO_LS_CLK_EDGE_CFG_UPDATE);
+	esp_clkrst_update(sc, MAP_HP, HP_SDIO_HOST_FUNC_CTRL0,
+	    SDIO_LS_CLK_EDGE_CFG_UPDATE, 0);
 }
 
 static int
@@ -221,6 +303,8 @@ esp_clk_set_rate(void *priv, struct clk *clk, u_int rate)
 	const u_int maxdiv = __SHIFTOUT_MASK(ec->ec_div) + 1;
 	u_int div;
 
+	if (ec->ec_sdio && rate != 0)
+		return esp_clk_sdio_set_rate(sc, prate, rate);
 	if (ec->ec_div == 0 || rate == 0)
 		return rate == esp_clk_get_rate(priv, clk) ? 0 : EINVAL;
 
@@ -240,6 +324,8 @@ esp_clk_enable(void *priv, struct clk *clk)
 
 	/* Select the (only) parent, then ungate. */
 	esp_clkrst_update(sc, ec->ec_map, ec->ec_reg, ec->ec_mux, 0);
+	if (ec->ec_sdio)
+		esp_clk_sdio_enable(sc);
 	esp_clkrst_update(sc, ec->ec_map, ec->ec_reg, 0, ec->ec_gate);
 	return 0;
 }
