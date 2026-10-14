@@ -69,6 +69,7 @@ PROG	usr/bin/touch
 PROG	usr/bin/tr
 PROG	usr/bin/tset	usr/bin/reset
 PROG	usr/bin/uname
+PROG	usr/bin/fptest
 PROG	usr/bin/uniq
 PROG	usr/bin/vi	usr/bin/ex usr/bin/view
 PROG	usr/bin/vmstat
@@ -84,6 +85,7 @@ PROG	usr/libexec/getty
 
 SPECIAL	awk	srcdir	external/historical/nawk/bin
 SPECIAL	vi	srcdir	external/bsd/nvi/usr.bin/nvi
+SPECIAL	fptest	srcdir	distrib/riscv/esp32s31/fptest
 
 LIBS	libhack.o -ledit -lutil -lcurses -lterminfo -lkvm -lcrypt -lm -lprop -lbz2 -lz
 

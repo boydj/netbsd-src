@@ -15,6 +15,7 @@ maxusers	8
 
 options 	SOC_ESP32S31
 options 	RISCV_CLIC		# interrupts via the CLIC, no sie/sip
+options 	FPE			# single-precision FPU (F, no D)
 options 	FDT
 options 	HZ=100
 
