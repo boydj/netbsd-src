@@ -59,6 +59,8 @@ if [ -f /etc/espwifi.conf ] && ifconfig espwifi0 >/dev/null 2>&1; then
 	    espwifictl join "$ssid" "${psk:--}")
 fi
 dhcpcd -q -b
+# Bluetooth link keys and PINs (btpin) for pairing.
+bthcid
 
 echo
 uname -a

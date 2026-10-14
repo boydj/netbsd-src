@@ -83,6 +83,8 @@ PROG	usr/bin/tip	usr/bin/cu
 PROG	usr/bin/tset	usr/bin/reset
 PROG	usr/bin/uname
 PROG	usr/bin/fptest
+PROG	usr/bin/btkey
+PROG	usr/bin/btpin
 PROG	usr/bin/rfcomm_sppd
 PROG	usr/bin/sdpquery
 PROG	usr/sbin/sntpdate
@@ -95,6 +97,7 @@ PROG	usr/bin/xargs
 PROG	usr/bin/awk
 
 PROG	usr/sbin/arp
+PROG	usr/sbin/bthcid
 PROG	usr/sbin/btconfig
 PROG	usr/sbin/chroot
 PROG	usr/sbin/espwifictl
@@ -116,7 +119,7 @@ SPECIAL	ping	srcdir	distrib/utils/x_ping
 SPECIAL	ping6	srcdir	distrib/utils/x_ping6
 SPECIAL	route	srcdir	distrib/utils/x_route
 
-LIBS	libhack.o -lbluetooth -ledit -lutil -lcurses -lterminfo -lkvm -lcrypt -lm -lprop -lbz2 -lz
+LIBS	libhack.o -lbluetooth -levent -ledit -lutil -lcurses -lterminfo -lkvm -lcrypt -lm -lprop -lbz2 -lz
 
 # init invokes the shell as -sh
 ARGVLN	sh -sh
