@@ -1,0 +1,25 @@
+#	$NetBSD$
+#
+# Espressif RISC-V SoC support (ESP32-S31)
+#
+
+defflag	opt_soc.h			SOC_ESP32S31
+
+file	arch/riscv/espressif/esp32s31_platform.c	soc_esp32s31
+
+# CLIC (S-mode bank) and interrupt matrix
+device	espclic
+attach	espclic at fdt with esp_clic
+device	espintmtx
+attach	espintmtx at fdt with esp_intmtx
+file	arch/riscv/espressif/esp_clic.c		esp_clic | esp_intmtx
+
+# SYSTIMER
+device	espsystimer
+attach	espsystimer at fdt with esp_systimer
+file	arch/riscv/espressif/esp_systimer.c	esp_systimer | soc_esp32s31
+
+# UART
+device	espuart: tty
+attach	espuart at fdt with esp_uart
+file	arch/riscv/espressif/esp_uart.c		esp_uart

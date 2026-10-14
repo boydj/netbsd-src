@@ -1,0 +1,105 @@
+// SPDX-License-Identifier: (GPL-2.0 OR MIT)
+/*
+ * Espressif ESP32-S31 device tree for NetBSD.
+ *
+ * Compatible with the bindings used by Espressif's Linux BSP
+ * (arch/riscv/boot/dts/espressif/esp32s31.dts on integration/v6.18-esp32s31),
+ * so the same blob works for both.  U-Boot passes it to the kernel
+ * ("booti 0x40400000 - 0x40200000"); flash it at raw offset 0x300000.
+ */
+
+/dts-v1/;
+
+/ {
+	compatible = "espressif,esp32s31";
+	#address-cells = <1>;
+	#size-cells = <1>;
+	model = "Espressif ESP32-S31";
+
+	aliases {
+		serial0 = &uart0;
+	};
+
+	chosen {
+		stdout-path = "serial0:115200n8";
+	};
+
+	xtal_clk: clock-xtal {
+		compatible = "fixed-clock";
+		#clock-cells = <0>;
+		clock-frequency = <40000000>;
+	};
+
+	cpus {
+		#address-cells = <1>;
+		#size-cells = <0>;
+		timebase-frequency = <320000000>;
+
+		cpu0: cpu@0 {
+			device_type = "cpu";
+			reg = <0>;
+			compatible = "riscv";
+			riscv,isa = "rv32imac_zicsr_zifencei";
+			riscv,isa-base = "rv32i";
+			riscv,isa-extensions = "i", "m", "a", "c", "zicsr",
+					       "zifencei";
+			mmu-type = "riscv,sv32";
+			clock-frequency = <320000000>;
+
+			cpu0_intc: interrupt-controller {
+				#interrupt-cells = <1>;
+				interrupt-controller;
+				compatible = "riscv,cpu-intc";
+			};
+		};
+	};
+
+	memory@50000000 {
+		device_type = "memory";
+		reg = <0x50000000 0x01000000>;	/* 16MiB PSRAM */
+	};
+
+	soc {
+		compatible = "simple-bus";
+		#address-cells = <1>;
+		#size-cells = <1>;
+		ranges;
+
+		/* CLIC, supervisor-mode bank (ids 16-47 delegated by OpenSBI) */
+		clic: interrupt-controller@10a00000 {
+			compatible = "espressif,esp32s31-clic";
+			reg = <0x10a00000 0x2000>;
+			interrupt-controller;
+			#interrupt-cells = <2>;
+			interrupt-parent = <&cpu0_intc>;
+		};
+
+		/* interrupt matrix, core 0 view */
+		intmtx: interrupt-controller@20585000 {
+			compatible = "espressif,esp32s31-intmtx";
+			reg = <0x20585000 0x800>;
+			interrupt-controller;
+			#interrupt-cells = <2>;
+			interrupt-parent = <&clic>;
+		};
+
+		uart0: serial@2038a000 {
+			compatible = "esp,esp32s3-uart";
+			reg = <0x2038a000 0x100>;
+			clocks = <&xtal_clk>;
+			current-speed = <115200>;
+			interrupt-parent = <&intmtx>;
+			interrupts = <9 4>;		/* IRQ_TYPE_LEVEL_HIGH */
+			status = "okay";
+		};
+
+		systimer: timer@20399000 {
+			compatible = "espressif,esp32s31-systimer";
+			reg = <0x20399000 0x100>;
+			clock-frequency = <16000000>;
+			interrupt-parent = <&intmtx>;
+			interrupts = <33 4>;		/* IRQ_TYPE_LEVEL_HIGH */
+			interrupt-names = "target0";
+		};
+	};
+};
