@@ -56,6 +56,11 @@ dwc_gmac_preattach_fdt(int phandle, struct dwc_gmac_softc *sc)
 	}
 	if (of_hasprop(phandle, "snps,fixed-burst"))
 		sc->sc_flags |= DWC_GMAC_FIXED_BURST;
+	if (of_hasprop(phandle, "snps,mixed-burst"))
+		sc->sc_flags |= DWC_GMAC_MIXED_BURST;
+	/* Bus mode bit 24 multiplies the burst lengths by 8 (4 on old cores) */
+	if (of_hasprop(phandle, "snps,no-pbl-x8"))
+		sc->sc_flags |= DWC_GMAC_NO_PBL_X8;
 #if notyet
 	if (of_hasprop(phandle, "snps,force_thresh_dma_mode"))
 		sc->sc_flags |= DWC_GMAC_FORCE_THRESH_DMA_MODE;

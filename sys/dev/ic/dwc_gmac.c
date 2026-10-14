@@ -879,7 +879,11 @@ dwc_gmac_init(struct ifnet *ifp)
 	 */
 	bus_space_write_4(sc->sc_bst, sc->sc_bsh, AWIN_GMAC_DMA_BUSMODE,
 	    ((sc->sc_flags & DWC_GMAC_FIXED_BURST) ? GMAC_BUSMODE_FIXEDBURST :
-	    0) | GMAC_BUSMODE_4PBL | GMAC_BUSMODE_USP |
+	    0) |
+	    ((sc->sc_flags & DWC_GMAC_MIXED_BURST) ? GMAC_BUSMODE_MIXEDBURST :
+	    0) |
+	    ((sc->sc_flags & DWC_GMAC_NO_PBL_X8) ? 0 : GMAC_BUSMODE_4PBL) |
+	    GMAC_BUSMODE_USP |
 	    __SHIFTIN(sc->sc_rxpbl, GMAC_BUSMODE_RPBL) |
 	    __SHIFTIN(sc->sc_txpbl, GMAC_BUSMODE_PBL));
 

@@ -98,6 +98,8 @@ struct dwc_gmac_softc {
 	uint32_t sc_flags;
 #define	DWC_GMAC_FORCE_THRESH_DMA_MODE	__BIT(0)/* force DMA to use threshold mode */
 #define	DWC_GMAC_FIXED_BURST		__BIT(1)/* fixed burst bus mode */
+#define	DWC_GMAC_NO_PBL_X8		__BIT(2)/* burst lengths are PBL, not 8x */
+#define	DWC_GMAC_MIXED_BURST		__BIT(3)/* mixed burst bus mode */
 	struct ethercom sc_ec;
 	struct mii_data sc_mii;
 	kmutex_t sc_mdio_lock;
