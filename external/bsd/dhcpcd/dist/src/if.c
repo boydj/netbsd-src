@@ -356,7 +356,7 @@ if_freeifaddrs(struct dhcpcd_ctx *ctx, struct ifaddrs **ifaddrs)
 	UNUSED(ctx);
 #endif
 
-	if (ifaddrs == NULL)
+	if (ifaddrs == NULL || *ifaddrs == NULL)
 		return;
 
 #ifdef PRIVSEP_GETIFADDRS
