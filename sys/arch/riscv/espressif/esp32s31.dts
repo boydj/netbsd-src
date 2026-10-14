@@ -117,6 +117,18 @@
 		};
 
 		/*
+		 * The flash's writable partition, at 0x200000 (1 MB, between
+		 * U-Boot and its device tree), through the MSPI controller's
+		 * SPI1 port.  /etc/rc mounts it on /persist.
+		 */
+		spiflash: flash@20501000 {
+			compatible = "espressif,esp32s31-spi-flash";
+			reg = <0x20501000 0x1000>, <0x20500000 0x1000>;
+			reg-names = "spi1", "spi0";
+			espressif,partition = <0x00200000 0x00100000>;
+		};
+
+		/*
 		 * Radio co-processor: ESP-IDF's Wi-Fi and Bluetooth stacks on
 		 * hart 1.  The firmware is at flash offset 0xd00000 and runs in
 		 * place; its RAM parts go above OpenSBI in the HP SRAM and in

@@ -17,14 +17,38 @@ mount -u -o ro / 2>/dev/null		# pick up the device name from fstab
 mount -t tmpfs -o -s2M tmpfs /tmp
 mount -t tmpfs -o -s1M tmpfs /var
 mount -t tmpfs -o -s512k tmpfs /root
-cp -p /etc/profile /root/.profile
-mkdir -p /var/run /var/log /var/tmp /var/db
+mkdir -p /var/run /var/log /var/tmp
 chmod 1777 /tmp /var/tmp
+
+# Persistent storage: an FFS file system in the flash's writable partition
+# (espnor0, 1 MB) on /persist, made the first time round.  /persist/etc
+# is union-mounted over /etc, so what's changed or added there (espwifi.conf,
+# myname, rc.local, ...) stays; /var/db (Bluetooth link keys, DHCP client
+# state) is /persist/db.  Mounted synchronous: boards get unplugged.
+case " $(sysctl -n hw.disknames 2>/dev/null) " in
+*" espnor0 "*)
+	if [ -z "$(dd if=/dev/respnor0a bs=8k count=9 2>/dev/null |
+	    tr -d '\377')" ]; then
+		echo "Making a file system for /persist on espnor0"
+		newfs -O 1 -b 4096 -f 512 -i 4096 -m 0 /dev/respnor0a \
+		    >/dev/null
+	fi
+	fsck_ffs -p /dev/respnor0a >/dev/null ||
+	    fsck_ffs -y /dev/respnor0a
+	if mount -o sync,noatime /dev/espnor0a /persist; then
+		mkdir -p /persist/etc /persist/db
+		mount -t union /persist/etc /etc
+		ln -s /persist/db /var/db
+	fi
+	;;
+esac
+mkdir -p /var/db
+cp -p /etc/profile /root/.profile
 mount -t kernfs kernfs /kern
 mount -t procfs procfs /proc
 mount -t ptyfs ptyfs /dev/pts
 
-hostname esp32s31
+hostname $(cat /etc/myname 2>/dev/null || echo esp32s31)
 : > /var/run/utmpx
 : > /var/log/wtmpx
 
@@ -61,6 +85,9 @@ fi
 dhcpcd -q -b
 # Bluetooth link keys and PINs (btpin) for pairing.
 bthcid
+
+# Local additions, e.g. in /persist/etc/rc.local.
+[ -f /etc/rc.local ] && . /etc/rc.local
 
 echo
 uname -a

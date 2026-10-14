@@ -53,6 +53,7 @@ file-system 	TMPFS		# Efficient memory file-system
 file-system 	KERNFS		# /kern
 file-system 	PROCFS		# /proc
 file-system 	PTYFS		# /dev/pts/N support
+file-system 	UNION		# /etc on /persist, over the read-only root
 options 	FFS_NO_SNAPSHOT
 
 # Root on md0, backed by the file system image in SPI flash (espxiproot)
@@ -84,6 +85,7 @@ espuart*	at fdt?			# UART
 espusj*		at fdt?			# USB-Serial/JTAG (CDC-ACM)
 esptrng*	at fdt?			# true random number generator
 espxiproot*	at fdt?			# root file system in SPI flash
+espnor*	at fdt?			# writable SPI flash partition (/persist)
 
 espgpio*	at fdt? pass 2		# GPIO and pin multiplexing
 gpio*		at gpiobus?

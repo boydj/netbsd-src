@@ -34,6 +34,11 @@ device	espxiproot
 attach	espxiproot at fdt with esp_xiproot
 file	arch/riscv/espressif/esp_xiproot.c	esp_xiproot
 
+# Writable partition of the SPI flash, as a disk
+device	espnor: disk
+attach	espnor at fdt with esp_spiflash
+file	arch/riscv/espressif/esp_spiflash.c	esp_spiflash
+
 # Clock gates and resets
 device	espclkrst: fdt_clock, fdt_reset
 attach	espclkrst at fdt with esp_clkrst

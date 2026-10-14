@@ -33,6 +33,7 @@ PROG	bin/test	bin/[
 PROG	sbin/dhcpcd
 PROG	sbin/dmesg
 PROG	sbin/fdisk
+PROG	sbin/fsck_ffs
 PROG	sbin/ifconfig
 PROG	sbin/init
 PROG	sbin/mknod
@@ -43,6 +44,8 @@ PROG	sbin/mount_msdos
 PROG	sbin/mount_procfs
 PROG	sbin/mount_ptyfs
 PROG	sbin/mount_tmpfs
+PROG	sbin/mount_union
+PROG	sbin/newfs
 PROG	sbin/newfs_msdos
 PROG	sbin/ping
 PROG	sbin/ping6

@@ -1,5 +1,6 @@
 Welcome to NetBSD on the Espressif ESP32-S31!
 
   RV32IMAFC + Sv32 MMU, 16 MiB PSRAM.  The root file system is read-only,
-  straight from SPI flash; /tmp, /var and /root are in memory, so changes
-  are lost at reset.  USB sticks: mount -t msdos /dev/sd0e /mnt
+  straight from SPI flash.  /etc and /persist are kept in a 1 MB flash
+  partition (rc.local, espwifi.conf, ...); /tmp, /var and /root are in
+  memory.  USB sticks: mount -t msdos /dev/sd0e /mnt
