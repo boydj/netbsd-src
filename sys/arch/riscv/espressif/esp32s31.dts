@@ -113,7 +113,24 @@
 		 */
 		rootfs: flash@40800000 {
 			compatible = "espressif,esp32s31-xip-rootfs";
-			reg = <0x40800000 0x00700000>;
+			reg = <0x40800000 0x00400000>;
+		};
+
+		/*
+		 * Radio co-processor: ESP-IDF's Wi-Fi and Bluetooth stacks on
+		 * hart 1.  The firmware is at flash offset 0xd00000 and runs in
+		 * place; its RAM parts go above OpenSBI in the HP SRAM and in
+		 * LP RAM.  FROM_CPU interrupt 1 rings it, 2 rings us.
+		 */
+		coproc: coprocessor@40c00000 {
+			compatible = "espressif,esp32s31-coproc";
+			reg = <0x40c00000 0x00300000>,
+			      <0x2f030000 0x0004afc0>,
+			      <0x2e000000 0x00008000>,
+			      <0x20586010 0x00000010>;
+			reg-names = "firmware", "sram", "lpram", "doorbell";
+			interrupt-parent = <&intmtx>;
+			interrupts = <67 4>;
 		};
 
 		/*

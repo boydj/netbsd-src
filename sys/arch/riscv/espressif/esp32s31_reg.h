@@ -57,6 +57,8 @@
 #define	S31_SBI_ICACHE_SYNC		3	/* whole caches */
 #define	S31_SBI_ICACHE_SYNC_RANGE	4	/* a0 = addr, a1 = size */
 #define	S31_SBI_DCACHE_WBACK_ALL	5
+#define	S31_SBI_HART1_BOOT		0x100	/* a0 = M-mode entry point */
+#define	S31_SBI_HART1_RESET		0x101
 
 /*
  * CLIC, supervisor-mode bank.  One byte each per interrupt id.

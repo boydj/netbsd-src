@@ -98,6 +98,13 @@ dwcmmc*		at fdt?
 sdmmc*		at sdmmcbus?
 ld*		at sdmmc?
 
+# Wi-Fi and Bluetooth: ESP-IDF's stacks in the radio co-processor
+# firmware on hart 1
+espcp*		at fdt?			# loader and message rings
+espwifi*	at espcp?		# Wi-Fi station (espwifictl)
+espbt*		at espcp?		# Bluetooth HCI
+bthub*		at espbt?
+
 # USB host: DesignWare OTG-HS in host mode
 espusbphy*	at fdt? pass 3		# USB 2.0 PHY
 dwctwo*		at fdt?

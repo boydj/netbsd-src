@@ -5,9 +5,10 @@ NetBSD/riscv32 on the Espressif ESP32-S31
 
 The ESP32-S31 is a dual-core RV32IMAFC SoC (plus Zba/Zbb/Zbc/Zbs) with
 an Sv32 MMU, up to 16MiB of PSRAM and 16MiB of quad SPI flash.  The
-ESP32S31 kernel runs it as a uniprocessor riscv32 system with a
-soft-float userland, single-precision FPU support for programs that use
-it, and a read-only root file system in flash.
+ESP32S31 kernel runs on the first hart as a uniprocessor riscv32 system,
+with a soft-float userland, single-precision FPU support for programs that
+use it, and a read-only root file system in flash.  The second hart runs
+Espressif's Wi-Fi and Bluetooth stacks (see "Wi-Fi and Bluetooth" below).
 
 Boot chain and flash layout
 ---------------------------
@@ -22,7 +23,8 @@ kernel:
 	0x100000		u-boot.itb: OpenSBI fw_dynamic + U-Boot
 	0x300000 0x40200000	device tree (esp32s31.dts)
 	0x500000 0x40400000	netbsd-esp32s31.img (at most 4MiB)
-	0x900000 0x40800000	root file system, FFS (at most 7MiB)
+	0x900000 0x40800000	root file system, FFS (at most 4MiB)
+	0xd00000 0x40c00000	radio co-processor firmware (at most 3MiB)
 
 U-Boot's default "booti 0x40400000 - 0x40200000" starts the image in
 place from the flash XIP window, in S-mode, with a0 = hart id and
@@ -121,12 +123,54 @@ when no host is reading.  Without BREAK, the DDB sequence is "+++++".
 Entropy.  esptrng reads the hardware TRNG and credits it conservatively
 (one bit per byte), after start-up and continuous repetition tests.
 
+SD card.  The SD/MMC host is a Synopsys DesignWare MSHC, dwcmmc(4) through
+dwcmmc_fdt.c, on the dedicated SDIO pads (GPIO20-25); espclkrst provides
+its clock dividers and phases.  Cards attach as ld(4).
+
+Wi-Fi and Bluetooth.  Espressif doesn't document the radio, but ships its
+Wi-Fi and Bluetooth stacks for the chip as binary libraries for ESP-IDF.
+So the second hart runs an ESP-IDF application with them, and NetBSD
+talks to it, as to a Wi-Fi/Bluetooth module on a bus:
+
+	espcp(4)	loads the firmware from its flash partition, copies its
+			RAM parts above OpenSBI in the HP SRAM (and to LP RAM),
+			gives it 1MiB of PSRAM and starts hart 1 in M-mode
+			through OpenSBI's vendor extension (HART1_BOOT, from
+			the companion repository's OpenSBI patch).  The two
+			sides exchange messages through rings in that PSRAM,
+			which needs no cache maintenance as the harts share
+			the L1 data cache; FROM_CPU interrupts 1 and 2 are the
+			doorbells.  It relays the firmware's log to the system
+			log and watches its heartbeat.  esp_cpproto.h is the
+			protocol, shared with the firmware.
+	espwifi(4)	a Wi-Fi station as an Ethernet interface whose link is
+			up while associated; the firmware does scanning,
+			association and WPA2/WPA3 (ESP-IDF's supplicant).
+			espwifictl(8) scans and joins networks through
+			SIOC[GS]DRVSPEC; dhcpcd does the rest.
+	espbt(4)	the BR/EDR + LE controller as an HCI transport for
+			bluetooth(4) (btconfig, sdpquery, rfcomm_sppd, ...).
+
+The firmware is a single-core ESP-IDF build (esp32s31-netbsd: espcp/) with
+a small patch so that it leaves the host's hardware alone: it believes it
+is core 0 but routes interrupts to hart 1, ticks from systimer alarm 1
+without resetting the systimer, has no flash driver, and stops its hart
+instead of resetting the chip when it panics.  Stopping hart 1 is in the
+shutdown hooks, so a warm reboot doesn't leave it running.  As in ESP-IDF,
+the eFuse MAC address is the base of four: Wi-Fi, soft-AP, Bluetooth and
+then Ethernet (awge).
+
 Status and limitations
 ----------------------
 
 Tested in a QEMU model of the chip and in Espressif's esp-emulator, which
-runs the real mask ROM.  Not yet tested on silicon.
+runs the real mask ROM.  Not yet tested on silicon.  esp-emulator runs the
+real Wi-Fi firmware on hart 1 (association with WPA3, DHCP, traffic); its
+Bluetooth emulation only intercepts the controller on hart 0, so Bluetooth
+is tested in QEMU, whose model of the co-processor speaks the protocol and
+hands HCI to a Bumble controller.
 
-Not supported yet: the second hart (MULTIPROCESSOR), Wi-Fi/BLE, SD/MMC,
-writing to the SPI flash, USB device mode, and an RTC (the date comes
-from the root file system until set, e.g. with ntpdate).
+Not supported yet: SMP (hart 1 belongs to the radio firmware), Wi-Fi
+access point mode, writing to the SPI flash, USB device mode, and an RTC
+(the date comes from the root file system until set, e.g. with
+sntpdate).

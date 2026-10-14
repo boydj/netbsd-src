@@ -57,3 +57,16 @@ file	arch/riscv/espressif/esp_usbphy.c	esp_usbphy
 
 attach	awge at fdt with esp_gmac: fdt_clock, fdt_gpio, fdt_pinctrl, fdt_reset, dwc_gmac_fdt_subr
 file	arch/riscv/espressif/esp_gmac.c		esp_gmac
+
+# Radio co-processor: ESP-IDF's Wi-Fi and Bluetooth on hart 1
+device	espcp { }
+attach	espcp at fdt with esp_cp
+file	arch/riscv/espressif/esp_cp.c		esp_cp
+
+device	espwifi: ether, ifnet, arp
+attach	espwifi at espcp
+file	arch/riscv/espressif/esp_cpwifi.c	espwifi
+
+device	espbt: btbus, bluetooth
+attach	espbt at espcp
+file	arch/riscv/espressif/esp_cpbt.c		espbt
