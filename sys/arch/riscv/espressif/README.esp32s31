@@ -6,20 +6,23 @@ NetBSD/riscv32 on the Espressif ESP32-S31
 The ESP32-S31 is a dual-core RV32IMAFC SoC (plus Zba/Zbb/Zbc/Zbs) with
 an Sv32 MMU, up to 16MiB of PSRAM and 16MiB of quad SPI flash.  The
 ESP32S31 kernel runs it as a uniprocessor riscv32 system with a
-soft-float userland and a memory disk root.
+soft-float userland, single-precision FPU support for programs that use
+it, and a read-only root file system in flash.
 
 Boot chain and flash layout
 ---------------------------
 
 NetBSD uses Espressif's own boot firmware unmodified (the "integration"
 esp32s31 branches of espressif/opensbi and espressif/u-boot), with the
-same flash layout as Espressif's Linux BSP:
+flash layout of Espressif's Linux BSP and the root file system after the
+kernel:
 
 	flash	XIP		contents
 	0x002000		U-Boot SPL (ESP image, loaded by the ROM)
 	0x100000		u-boot.itb: OpenSBI fw_dynamic + U-Boot
 	0x300000 0x40200000	device tree (esp32s31.dts)
-	0x500000 0x40400000	netbsd-esp32s31.img
+	0x500000 0x40400000	netbsd-esp32s31.img (at most 4MiB)
+	0x900000 0x40800000	root file system, FFS (at most 7MiB)
 
 U-Boot's default "booti 0x40400000 - 0x40200000" starts the image in
 place from the flash XIP window, in S-mode, with a0 = hart id and
@@ -31,23 +34,31 @@ the SPL's ESP image header must say DIO at 80MHz (esptool elf2image
 --flash-mode dio --flash-freq 80m); with esptool's QIO default the ROM
 reads the SPL incorrectly.
 
-The console is UART0 at 115200 baud, as set up by the ROM and U-Boot.
+espxiproot hands the root file system's XIP window to md(4)
+(MEMORY_DISK_DYNAMIC), so the root is read straight out of flash and all
+of the PSRAM is left for the kernel and processes.  It is mounted
+read-only; rc puts /tmp, /var and /root on tmpfs.
+
+Consoles.  The console is UART0 at 115200 baud, as set up by the ROM and
+U-Boot, unless the device tree's stdout-path names the USB-Serial/JTAG
+port (serial1).  rc writes /etc/ttys (a link to /var/run/ttys) at boot
+with a getty on the console and on whichever of ttyEU0 (the UART) and
+ttyUSJ0 (USB-Serial/JTAG) is not the console.
 
 Building
 --------
 
 	./build.sh -m riscv -a riscv32 tools
 	(static libraries, see below)
-	cd distrib/riscv/esp32s31 && nbmake-riscv
+	cd distrib/riscv/esp32s31 && nbmake-riscv	# esp32s31-root.fs
 	./build.sh -m riscv -a riscv32 kernel=ESP32S31
-	riscv32--netbsd-mdsetimage netbsd esp32s31-root.fs
 
 riscv32 defaults to MKSOFTFLOAT=yes (-march=rv32imac_zicsr_zifencei
--mabi=ilp32).  The ramdisk only needs a few static libraries: csu,
-libgcc, libc, libutil, libterminfo, libcurses, libedit, libkvm, libcrypt,
-libm, libprop, libbz2 and libz.  Building those, the boot firmware, the
-flash image and a QEMU machine model for the chip is scripted in the
-esp32s31-netbsd helper repository.
+-mabi=ilp32).  The root file system only needs a few static libraries:
+csu, libgcc, libc, libutil, libterminfo, libcurses, libedit, libkvm,
+libcrypt, libm, libprop, libbz2 and libz.  Building those, the boot
+firmware, the flash image and a QEMU machine model for the chip is
+scripted in the esp32s31-netbsd helper repository.
 
 Implementation notes
 --------------------
@@ -58,20 +69,54 @@ interrupt level (SPIL) and aliases of SPP/SPIE, and sret restores the
 level.  options RISCV_CLIC adapts locore, the trap path and spl(9): IPLs
 at or above IPL_VM block through sstatus.SIE.  OpenSBI delegates CLIC
 ids 16-47 to S-mode; espclic(4) drives that bank and espintmtx routes
-peripheral interrupt sources to it.
+peripheral interrupt sources to it.  vmstat -i counts them per CLIC id.
 
 Time.  The time CSR is emulated by OpenSBI and stops in wfi, so the
 16MHz SYSTIMER (espsystimer) provides the timecounter, hardclock (the
 TARGET0 alarm, one-shot) and delay(9).
 
+FPU.  The harts have F but not D.  The kernel takes the FP register
+width from the device tree's ISA string and saves 32-bit registers; the
+userland ABI stays ilp32 (soft-float), and programs compiled with
+-march=rv32imafc use the FPU.  At boot the kernel checks whether the
+core traps FP instructions while sstatus.FS is Off: if it does, FP state
+is switched lazily as usual; if not (as in esp-emulator), it is restored
+eagerly on every return to user mode.
+
 Caches.  The L1/L2 caches sit outside the harts and fence.i does not
-make them coherent.  Instruction cache maintenance goes through
-OpenSBI's vendor extension (EID 0x09000000 + mvendorid), installed as
-riscv_icache_sync_{all,range}_hook.
+make them coherent.  Cache maintenance goes through OpenSBI's vendor
+extension (EID 0x09000000 + mvendorid): instruction cache sync as
+riscv_icache_sync_{all,range}_hook, and D-cache write-back and
+invalidate (by physical address, PSRAM only) as cpu_dcache_*_range.
+Peripheral DMA is not coherent, so bus_dma(9) cleans and invalidates
+around every transfer.
 
 Memory.  On RV32 the 32MiB kernel megapage window doubles as the direct
 map, so physical memory is limited to that window (all of the PSRAM).
-About 11MiB is left for the system after the kernel and its memory disk.
+About 13MiB is left for the system after the kernel.
+
+Clocks, resets and pins.  espclkrst is the FDT clock and reset provider
+for the gates, dividers and resets in HP_SYS_CLKRST and CNNT_SYS, with
+Espressif's dt-bindings ids.  espgpio drives IO_MUX, the GPIO matrix and
+the CNNT dedicated pads as the FDT pinctrl and GPIO provider, and attaches
+gpio(4).  Pins used for flash, PSRAM and USB-Serial/JTAG are not
+exposed.
+
+Ethernet.  The EMAC is a DesignWare GMAC 3.70a, attached as awge(4)
+through esp_gmac.c: clocks, reset, RGMII pad clocking in CNNT_SYS, the
+PHY reset GPIO, the factory MAC address from eFuse, and the reference
+clock following the link speed.  The dev board's PHY is a Motorcomm
+YT8531 (mcommphy(4)).
+
+USB.  The OTG-HS controller is a DesignWare HS OTG in host mode,
+dwctwo(4), with espusbphy powering the UTMI PHY.  The kernel has USB
+mass storage, serial and Ethernet adapters, and ugen.
+
+USB-Serial/JTAG.  espusj(4) drives the fixed-function CDC-ACM device on
+the board's "USB" connector as a tty and optionally the console.  It
+sends packets of at most 63 bytes so that every one reaches the host's
+terminal at once, and console output stops waiting after a short time
+when no host is reading.  Without BREAK, the DDB sequence is "+++++".
 
 Entropy.  esptrng reads the hardware TRNG and credits it conservatively
 (one bit per byte), after start-up and continuous repetition tests.
@@ -79,11 +124,9 @@ Entropy.  esptrng reads the hardware TRNG and credits it conservatively
 Status and limitations
 ----------------------
 
-Tested in a QEMU model of the chip (CLIC, interrupt matrix, SYSTIMER,
-UART, TRNG) and in Espressif's esp-emulator, which runs the real mask
-ROM.  Not yet tested on silicon.
+Tested in a QEMU model of the chip and in Espressif's esp-emulator, which
+runs the real mask ROM.  Not yet tested on silicon.
 
-Not supported yet: the second hart (MULTIPROCESSOR), the FPU (userland
-is soft-float), Wi-Fi/BLE, Ethernet, SD/MMC, the SPI flash as a disk,
-GPIO, the USB Serial/JTAG console, and an RTC (the date comes from the
-root file system).
+Not supported yet: the second hart (MULTIPROCESSOR), Wi-Fi/BLE, SD/MMC,
+writing to the SPI flash, USB device mode, and an RTC (the date comes
+from the root file system until set, e.g. with ntpdate).
