@@ -87,6 +87,9 @@ PROG	usr/bin/tip	usr/bin/cu
 PROG	usr/bin/tset	usr/bin/reset
 PROG	usr/bin/uname
 PROG	usr/bin/fptest
+PROG	usr/bin/audioctl
+PROG	usr/bin/audioplay
+PROG	usr/bin/audiorecord
 PROG	usr/bin/btkey
 PROG	usr/bin/cansend	usr/bin/candump
 PROG	usr/bin/btpin
@@ -125,6 +128,9 @@ SPECIAL	espwifictl	srcdir	distrib/riscv/esp32s31/espwifictl
 SPECIAL	i2cxfer	srcdir	distrib/riscv/esp32s31/i2cxfer
 SPECIAL	spixfer	srcdir	distrib/riscv/esp32s31/spixfer
 SPECIAL	cansend	srcdir	distrib/riscv/esp32s31/cansend
+SPECIAL	audioctl	srcdir	distrib/riscv/esp32s31/x_audioctl
+SPECIAL	audioplay	srcdir	distrib/riscv/esp32s31/x_audioplay
+SPECIAL	audiorecord	srcdir	distrib/riscv/esp32s31/x_audiorecord
 SPECIAL	dhcpcd	srcdir	distrib/riscv/esp32s31/x_dhcpcd
 SPECIAL	ftp	srcdir	distrib/riscv/esp32s31/x_ftp
 SPECIAL	ifconfig	srcdir	distrib/utils/x_ifconfig

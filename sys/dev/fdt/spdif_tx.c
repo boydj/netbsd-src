@@ -48,8 +48,15 @@ struct spdif_tx_softc {
 static int	spdif_tx_match(device_t, cfdata_t, void *);
 static void	spdif_tx_attach(device_t, device_t, void *);
 
+/*
+ * Also the codecs with nothing to set up: I2S DACs, amplifiers and
+ * microphones that take their format from the bit and frame clocks.
+ */
 static const struct device_compatible_entry compat_data[] = {
-	{ .compat = "linux,spdif-dit" },
+	{ .compat = "linux,spdif-dit",	.data = "SPDIF transmitter" },
+	{ .compat = "ti,pcm5102a",	.data = "PCM5102A DAC" },
+	{ .compat = "maxim,max98357a",	.data = "MAX98357A amplifier" },
+	{ .compat = "invensense,ics43432", .data = "ICS-43432 microphone" },
 	DEVICE_COMPAT_EOL
 };
 
@@ -103,7 +110,8 @@ spdif_tx_attach(device_t parent, device_t self, void *aux)
 	sc->sc_dev = self;
 
 	aprint_naive("\n");
-	aprint_normal(": SPDIF transmitter\n");
+	aprint_normal(": %s\n", (const char *)
+	    of_compatible_lookup(phandle, compat_data)->data);
 
 	sc->sc_dai.dai_set_format = spdif_tx_set_format;
 	sc->sc_dai.dai_add_device = spdif_tx_add_device;

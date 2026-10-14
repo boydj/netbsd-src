@@ -107,6 +107,11 @@ device	esptwai: ifnet
 attach	esptwai at fdt with esp_twai
 file	arch/riscv/espressif/esp_twai.c		esp_twai
 
+# I2S (the CPU side of a simple-audio-card)
+device	espi2s: fdt_dai
+attach	espi2s at fdt with esp_i2s
+file	arch/riscv/espressif/esp_i2s.c		esp_i2s
+
 # Analog comparator
 device	espcmpr: sysmon_envsys
 attach	espcmpr at fdt with esp_cmpr

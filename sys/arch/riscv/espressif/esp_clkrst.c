@@ -109,7 +109,10 @@ __KERNEL_RCSID(0, "$NetBSD$");
 #define	CLK_HMAC		40
 #define	CLK_ECDSA		41
 #define	CLK_ZERO_DET		42	/* analog comparator */
-#define	CLK_NUM			43
+#define	CLK_I2S0		43	/* bus clocks; I2S does its own dividers */
+#define	CLK_I2S1		44
+#define	CLK_AHB_PDMA		45
+#define	CLK_NUM			46
 
 /* Reset ids */
 #define	RST_IOMUX		0
@@ -145,7 +148,9 @@ __KERNEL_RCSID(0, "$NetBSD$");
 #define	RST_HMAC		32
 #define	RST_ECDSA		33
 #define	RST_ZERO_DET		34
-#define	RST_NUM			35
+#define	RST_I2S0		35
+#define	RST_I2S1		36
+#define	RST_NUM			37
 
 /* HP_SYS_CLKRST */
 #define	HP_CRYPTO_CTRL0		0x058
@@ -201,6 +206,11 @@ __KERNEL_RCSID(0, "$NetBSD$");
 #define	 TIMERGRP_RST_EN	__BIT(1)
 #define	 TIMERGRP_WDT_CLK_EN	__BIT(11)
 #define	HP_MCPWM_CTRL0(n)	(0x124 + 4 * (n))
+#define	HP_AHB_PDMA_CTRL0	0x07c
+#define	 AHB_PDMA_SYS_CLK_EN	__BIT(0)
+#define	HP_I2S_CTRL0(n)		(0x0e4 + 0x14 * (n))
+#define	 I2S_APB_CLK_EN		__BIT(0)
+#define	 I2S_APB_RST_EN		__BIT(1)
 #define	HP_ZERO_DET_CTRL0	0x1b8
 #define	 ZERO_DET_APB_CLK_EN	__BIT(0)
 #define	 ZERO_DET_APB_RST_EN	__BIT(1)
@@ -445,6 +455,12 @@ static const struct esp_clk esp_clks[CLK_NUM] = {
 	    MCPWM_CLK_DIV_NUM, MCPWM_CLK_SRC_SEL, mux_xtal_rcfast_f160m, 0),
 	MCLK(CLK_MCPWM3, "mcpwm3", MAP_HP, HP_MCPWM_CTRL0(3), MCPWM_GATES,
 	    MCPWM_CLK_DIV_NUM, MCPWM_CLK_SRC_SEL, mux_xtal_rcfast_f160m, 0),
+	CLK(CLK_I2S0, "i2s0", MAP_HP, PARENT_XTAL, HP_I2S_CTRL0(0),
+	    I2S_APB_CLK_EN, 0, 0),
+	CLK(CLK_I2S1, "i2s1", MAP_HP, PARENT_XTAL, HP_I2S_CTRL0(1),
+	    I2S_APB_CLK_EN, 0, 0),
+	CLK(CLK_AHB_PDMA, "ahb_pdma", MAP_HP, PARENT_XTAL, HP_AHB_PDMA_CTRL0,
+	    AHB_PDMA_SYS_CLK_EN, 0, 0),
 	MCLK(CLK_ZERO_DET, "zero_det", MAP_HP, HP_ZERO_DET_CTRL0,
 	    ZERO_DET_APB_CLK_EN | ZERO_DET_CLK_EN, ZERO_DET_CLK_DIV_NUM,
 	    ZERO_DET_CLK_SRC_SEL, mux_xtal_rcfast_f80m, 0),
@@ -485,6 +501,8 @@ static const struct esp_rst esp_rsts[RST_NUM] = {
 	[RST_MCPWM3] = { MAP_HP, HP_MCPWM_CTRL0(3), MCPWM_RST_EN },
 	[RST_ZERO_DET] = { MAP_HP, HP_ZERO_DET_CTRL0,
 	    ZERO_DET_APB_RST_EN | ZERO_DET_CORE_RST_EN },
+	[RST_I2S0] = { MAP_HP, HP_I2S_CTRL0(0), I2S_APB_RST_EN },
+	[RST_I2S1] = { MAP_HP, HP_I2S_CTRL0(1), I2S_APB_RST_EN },
 };
 
 static const struct device_compatible_entry compat_data[] = {

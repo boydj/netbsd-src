@@ -37,7 +37,8 @@ IMAGEDEPENDS=	${CRUNCHBIN} \
 		${NETBSDSRCDIR}/etc/group
 
 MAKEDEVTARGETS=	std md0 ptm bpf gpio ld0 usb0 usb1 ugen0 ugen1 sd0 sd1 \
-		ttyU0 ttyU1 ttyEU0 ttyEU1 ttyEU2 ttyEU3 ttyUSJ0 espnor0 iic0 iic1 spi0 spi1 sysmon crypto
+		ttyU0 ttyU1 ttyEU0 ttyEU1 ttyEU2 ttyEU3 ttyUSJ0 espnor0 iic0 iic1 spi0 spi1 sysmon crypto \
+		audio
 
 # Use stubs to eliminate some large stuff from libc
 HACKSRC=	${DISTRIBDIR}/utils/libhack

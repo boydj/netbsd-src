@@ -94,6 +94,10 @@ espcmpr*	at fdt?			# analog comparator (envstat)
 espledc*	at fdt?			# LED PWM controllers
 espmcpwm*	at fdt?			# motor control PWM
 esptwai*	at fdt?			# CAN controllers
+espi2s*		at fdt?			# I2S
+spdiftx*	at fdt?			# codecs with no controls (I2S DACs)
+ausoc*		at fdt?			# simple-audio-card
+audio*		at audiobus?
 pseudo-device	crypto			# /dev/crypto
 pseudo-device	swcrypto		# software algorithms for opencrypto
 

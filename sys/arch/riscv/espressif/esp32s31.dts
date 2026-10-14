@@ -62,6 +62,33 @@
 		};
 	};
 
+	/*
+	 * I2S0 to a DAC that needs no setting up (a PCM5102A, or a
+	 * MAX98357A, or an I2S microphone for capture): BCK, WS, DOUT and
+	 * DIN on whatever pins sysctl hw.espgpio0.pinN routes i2s0_bck,
+	 * i2s0_ws, i2s0_dout and i2s0_din to.
+	 */
+	i2s_dac: audio-codec {
+		compatible = "ti,pcm5102a";
+		#sound-dai-cells = <0>;
+	};
+
+	sound {
+		compatible = "simple-audio-card";
+		simple-audio-card,name = "ESP32-S31 I2S0";
+		simple-audio-card,format = "i2s";
+		simple-audio-card,bitclock-master = <&i2s0_cpu>;
+		simple-audio-card,frame-master = <&i2s0_cpu>;
+
+		i2s0_cpu: simple-audio-card,cpu {
+			sound-dai = <&i2s0>;
+		};
+
+		simple-audio-card,codec {
+			sound-dai = <&i2s_dac>;
+		};
+	};
+
 	memory@50000000 {
 		device_type = "memory";
 		reg = <0x50000000 0x01000000>;	/* 16MiB PSRAM */
@@ -209,6 +236,34 @@
 			interrupts = <20 4>;
 			clocks = <&clkrst 24>;
 			resets = <&clkrst 16>;
+		};
+
+		/*
+		 * I2S, through pairs 0 and 1 of the AHB GDMA; the
+		 * clock registers are each port's in HP_SYS_CLKRST.
+		 */
+		i2s0: i2s@20387000 {
+			compatible = "espressif,esp32s31-i2s";
+			reg = <0x20387000 0x1000>, <0x205870e8 0x10>,
+			      <0x20343000 0x1000>;
+			interrupt-parent = <&intmtx>;
+			interrupts = <41 4>, <36 4>;
+			clocks = <&clkrst 43>, <&clkrst 45>;
+			resets = <&clkrst 35>;
+			espressif,dma-channel = <0>;
+			#sound-dai-cells = <0>;
+		};
+
+		i2s1: i2s@20388000 {
+			compatible = "espressif,esp32s31-i2s";
+			reg = <0x20388000 0x1000>, <0x205870fc 0x10>,
+			      <0x20343000 0x1000>;
+			interrupt-parent = <&intmtx>;
+			interrupts = <42 4>, <37 4>;
+			clocks = <&clkrst 44>, <&clkrst 45>;
+			resets = <&clkrst 36>;
+			espressif,dma-channel = <1>;
+			#sound-dai-cells = <0>;
 		};
 
 		/* Analog comparator: GPIO37-40, off until configured */
