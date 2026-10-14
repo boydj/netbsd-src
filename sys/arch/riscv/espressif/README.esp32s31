@@ -7,8 +7,9 @@ The ESP32-S31 is a dual-core RV32IMAFC SoC (plus Zba/Zbb/Zbc/Zbs) with
 an Sv32 MMU, up to 16MiB of PSRAM and 16MiB of quad SPI flash.  The
 ESP32S31 kernel runs on the first hart as a uniprocessor riscv32 system,
 with a soft-float userland, single-precision FPU support for programs that
-use it, and a read-only root file system in flash.  The second hart runs
-Espressif's Wi-Fi and Bluetooth stacks (see "Wi-Fi and Bluetooth" below).
+use it, a read-only root file system in flash and a small writable flash
+partition for /etc and /persist.  The second hart runs Espressif's Wi-Fi
+and Bluetooth stacks (see "Wi-Fi and Bluetooth" below).
 
 Boot chain and flash layout
 ---------------------------
@@ -21,6 +22,7 @@ kernel:
 	flash	XIP		contents
 	0x002000		U-Boot SPL (ESP image, loaded by the ROM)
 	0x100000		u-boot.itb: OpenSBI fw_dynamic + U-Boot
+	0x200000		/persist: FFS, written through SPI1 (1MiB)
 	0x300000 0x40200000	device tree (esp32s31.dts)
 	0x500000 0x40400000	netbsd-esp32s31.img (at most 4MiB)
 	0x900000 0x40800000	root file system, FFS (at most 4MiB)
@@ -40,6 +42,14 @@ espxiproot hands the root file system's XIP window to md(4)
 (MEMORY_DISK_DYNAMIC), so the root is read straight out of flash and all
 of the PSRAM is left for the kernel and processes.  It is mounted
 read-only; rc puts /tmp, /var and /root on tmpfs.
+
+espnor(4) is the flash partition at 0x200000 as a disk (dk(9)), written
+through the MSPI controller's software port (SPI1) while the kernel and
+root file system keep executing in place through SPI0: page programs and
+sector erases are suspended automatically whenever the cache needs the
+flash, and SPI1 waits for the flash to go idle.  rc makes an FFS on it the
+first time, mounts it on /persist and union-mounts /persist/etc over /etc,
+so changes to /etc survive resets; /var/db points into /persist too.
 
 Consoles.  The console is UART0 at 115200 baud, as set up by the ROM and
 U-Boot, unless the device tree's stdout-path names the USB-Serial/JTAG
@@ -75,7 +85,11 @@ peripheral interrupt sources to it.  vmstat -i counts them per CLIC id.
 
 Time.  The time CSR is emulated by OpenSBI and stops in wfi, so the
 16MHz SYSTIMER (espsystimer) provides the timecounter, hardclock (the
-TARGET0 alarm, one-shot) and delay(9).
+TARGET0 alarm, one-shot) and delay(9).  esprtc(4) keeps the time of day
+across resets and deep sleep: the LP domain's 48-bit RTC timer counts the
+~136kHz slow clock (calibrated against the XTAL with timer group 0), and
+the time it was last set is kept in LP_SYS store registers.  It is not
+battery-backed: power loss forgets it.
 
 FPU.  The harts have F but not D.  The kernel takes the FP register
 width from the device tree's ISA string and saves 32-bit registers; the
@@ -125,7 +139,69 @@ Entropy.  esptrng reads the hardware TRNG and credits it conservatively
 
 SD card.  The SD/MMC host is a Synopsys DesignWare MSHC, dwcmmc(4) through
 dwcmmc_fdt.c, on the dedicated SDIO pads (GPIO20-25); espclkrst provides
-its clock dividers and phases.  Cards attach as ld(4).
+its clock dividers and phases.  Cards attach as ld(4).  The host has a
+second slot on fixed IO_MUX pads (GPIO35-40, strapping pins);
+espressif,slot = <1> and the sdmmc1-pins configuration in the device tree
+select it instead (dwc_mmc(4) drives one card of a multi-card host).
+UHS-I is not used: on this chip the 1.8V SD pad supply comes from the one
+LDO channel that boards with PSRAM use for the PSRAM, and ESP-IDF itself
+only does SDR50 on slot 0.
+
+Serial, I2C and SPI.  UART1-3 are espuart(4) ttys (ttyEU1-3), their pins
+routed through the GPIO matrix by name (sysctl hw.espgpio0.pinN =
+uart1_txd ...; hw.espgpio0.functions lists them).  The two HP I2C
+controllers are espi2c(4) masters for iic(4) (i2cscan, and i2cxfer for
+raw transfers); the command engine's 32-byte FIFO is refilled in rounds.
+GPSPI2 and GPSPI3 are espspi(4) masters for spi(4) (spixfer), through the
+64-byte data buffer with the chip select held across rounds.
+
+Watchdog and sensors.  espwdt(4) is timer group 1's main watchdog for
+wdogctl(8); armed and not tickled, it resets the HP system.  The
+temperature sensor and the two SAR ADCs need analog calibration only
+ESP-IDF knows, so the co-processor firmware reads them: espsensor(4)
+shows the temperature and the ADC channels asked for in
+hw.espsensor0.adc_channels (calibrated mV) to envstat(8).  espcmpr(4) is
+the analog comparator: three channels on GPIO37-40 against a fraction of
+VDD or another pad, as envsys indicators, configured with sysctl.
+
+Crypto.  espcrypto(4) gives the AES engine to aes(9) (AES-128/256; 192
+goes to BearSSL), and SHA-1, HMAC-SHA1/SHA2 and modular exponentiation
+(the RSA engine, up to 4096 bits) to opencrypto for /dev/crypto.  Each
+engine is checked against known answers at attach.  The firmware's
+mbedTLS doesn't use the engines; the ECC engine belongs to its Bluetooth
+controller, and HMAC/DS/ECDSA work with eFuse keys and are not used.
+
+PWM.  espledc(4) drives the two LED controllers (8 channels and 4 timers
+each, timers shared by channels with the same period) and espmcpwm(4)
+the four motor control PWM blocks (6 outputs, in pairs sharing a timer),
+as pwm(9) controllers for device tree consumers and through sysctl
+(hw.espledc0.chN.period, duty, pin, inverted; .actual shows what the
+hardware does).  Both count the XTAL; polarity is the GPIO matrix's
+output inversion.
+
+CAN.  The two TWAI controllers are CTU CAN FD cores, esptwai(4) netcan
+interfaces with canconfig(8) timing (or sysctl hw.esptwaiN.bitrate) and
+loopback, listen-only and presume-ACK modes; cansend/candump in the image
+do the rest.  NetBSD's CAN sockets carry classic frames, so FD frames on
+the bus are received but dropped (and counted).
+
+Audio.  espi2s(4) is the CPU side of a simple-audio-card (ausoc(4),
+audio(4)): standard I2S, 16-bit stereo, 8 to 48kHz, playback and capture
+at once, the port being the clock master, through rings of AHB GDMA
+descriptors with bus_dma syncs for the PSRAM buffers.  The device tree
+wires I2S0 to a codec with nothing to set up (a PCM5102A DAC, a MAX98357A
+amplifier or an I2S microphone; spdiftx(4) matches those).
+
+Power.  The CPU clock is shared with hart 1, so the firmware changes it,
+as ESP-IDF's own frequency scaling would (CPLL dividers only): 320, 160 or
+80MHz through machdep.cpufreq.cpu0.  Not lower, since PSRAM at 200MHz
+wants the bus at a quarter of that.  Timekeeping doesn't depend on it.
+Power-off (halt -p) is the chip's deep sleep, through espcp as an FDT
+power controller: everything but the LP domain stops until the time in
+hw.espcp0.poweroff_wake_secs, or a low level on one of GPIO0-7 in
+hw.espcp0.poweroff_wake_gpios, wakes the chip, which then boots again.
+Light sleep is chip-wide and would stop the Wi-Fi firmware, so idle is
+just wfi.
 
 Wi-Fi and Bluetooth.  Espressif doesn't document the radio, but ships its
 Wi-Fi and Bluetooth stacks for the chip as binary libraries for ESP-IDF.
@@ -156,7 +232,8 @@ a small patch so that it leaves the host's hardware alone: it believes it
 is core 0 but routes interrupts to hart 1, ticks from systimer alarm 1
 without resetting the systimer, has no flash driver, and stops its hart
 instead of resetting the chip when it panics.  Stopping hart 1 is in the
-shutdown hooks, so a warm reboot doesn't leave it running.  As in ESP-IDF,
+shutdown hooks, so a warm reboot doesn't leave it running (power-off
+leaves it be, as it is what powers the chip down).  As in ESP-IDF,
 the eFuse MAC address is the base of four: Wi-Fi, soft-AP, Bluetooth and
 then Ethernet (awge).
 
@@ -165,12 +242,17 @@ Status and limitations
 
 Tested in a QEMU model of the chip and in Espressif's esp-emulator, which
 runs the real mask ROM.  Not yet tested on silicon.  esp-emulator runs the
-real Wi-Fi firmware on hart 1 (association with WPA3, DHCP, traffic); its
-Bluetooth emulation only intercepts the controller on hart 0, so Bluetooth
-is tested in QEMU, whose model of the co-processor speaks the protocol and
-hands HCI to a Bumble controller.
+real Wi-Fi firmware on hart 1 (association with WPA3, DHCP, traffic) and
+models the crypto engines, flash writes, I2C, SPI, the watchdog and the
+temperature sensor; its Bluetooth emulation only intercepts the
+controller on hart 0, so Bluetooth is tested in QEMU, whose model of the
+co-processor speaks the protocol and hands HCI to a Bumble controller.
+QEMU also models the UARTs, the RTC timer, the comparator, the CAN
+controllers (on one CAN bus), I2S with the GDMA, and the PWM blocks'
+registers.
 
 Not supported yet: SMP (hart 1 belongs to the radio firmware), Wi-Fi
-access point mode, writing to the SPI flash, USB device mode, and an RTC
-(the date comes from the root file system until set, e.g. with
-sntpdate).
+access point mode, USB device mode, CAN FD frames from NetBSD, UHS-I SD
+modes, light sleep, I2S TDM/PDM modes and codecs that need setting up,
+the LP I2C controller and I2C target mode, LEDC hardware fades and MCPWM
+dead time, capture and fault inputs.
