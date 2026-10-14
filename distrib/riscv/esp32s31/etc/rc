@@ -17,6 +17,7 @@ mount -u -o ro / 2>/dev/null		# pick up the device name from fstab
 mount -t tmpfs -o -s2M tmpfs /tmp
 mount -t tmpfs -o -s1M tmpfs /var
 mount -t tmpfs -o -s512k tmpfs /root
+cp -p /etc/profile /root/.profile
 mkdir -p /var/run /var/log /var/tmp /var/db
 chmod 1777 /tmp /var/tmp
 mount -t kernfs kernfs /kern
@@ -28,6 +29,16 @@ hostname esp32s31
 : > /var/log/wtmpx
 
 dmesg > /var/run/dmesg.boot
+
+# Network: loopback, then DHCP on any Ethernet interface (in the background,
+# so a missing cable doesn't hold up the login prompt).
+ifconfig lo0 inet 127.0.0.1 up
+mkdir -p /var/db/dhcpcd /var/run/dhcpcd
+for ifc in $(ifconfig -l); do
+	case $ifc in
+	awge*)	dhcpcd -q -b $ifc ;;
+	esac
+done
 
 echo
 uname -a

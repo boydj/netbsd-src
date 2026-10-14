@@ -30,7 +30,9 @@ PROG	bin/stty
 PROG	bin/sync
 PROG	bin/test	bin/[
 
+PROG	sbin/dhcpcd
 PROG	sbin/dmesg
+PROG	sbin/ifconfig
 PROG	sbin/init
 PROG	sbin/mknod
 PROG	sbin/mount
@@ -39,17 +41,22 @@ PROG	sbin/mount_kernfs
 PROG	sbin/mount_procfs
 PROG	sbin/mount_ptyfs
 PROG	sbin/mount_tmpfs
+PROG	sbin/ping
+PROG	sbin/ping6
 PROG	sbin/reboot	sbin/halt sbin/poweroff
+PROG	sbin/route
 PROG	sbin/shutdown
 PROG	sbin/sysctl
 PROG	sbin/umount
 
 PROG	usr/bin/basename	usr/bin/dirname
+PROG	usr/bin/cksum	usr/bin/md5 usr/bin/sha1 usr/bin/sha256 usr/bin/sha512
 PROG	usr/bin/cmp
 PROG	usr/bin/cut
 PROG	usr/bin/du
 PROG	usr/bin/env
 PROG	usr/bin/find
+PROG	usr/bin/ftp
 PROG	usr/bin/grep	usr/bin/egrep usr/bin/fgrep
 PROG	usr/bin/head
 PROG	usr/bin/hexdump	usr/bin/od
@@ -57,6 +64,8 @@ PROG	usr/bin/jot
 PROG	usr/bin/id	usr/bin/whoami usr/bin/groups
 PROG	usr/bin/less	usr/bin/more
 PROG	usr/bin/login
+PROG	usr/bin/nc
+PROG	usr/bin/netstat
 PROG	usr/bin/printf
 PROG	usr/bin/sed
 PROG	usr/bin/seq
@@ -78,7 +87,9 @@ PROG	usr/bin/wc
 PROG	usr/bin/xargs
 PROG	usr/bin/awk
 
+PROG	usr/sbin/arp
 PROG	usr/sbin/chroot
+PROG	usr/sbin/gpioctl
 PROG	usr/sbin/pwd_mkdb
 
 PROG	usr/libexec/getty
@@ -86,6 +97,12 @@ PROG	usr/libexec/getty
 SPECIAL	awk	srcdir	external/historical/nawk/bin
 SPECIAL	vi	srcdir	external/bsd/nvi/usr.bin/nvi
 SPECIAL	fptest	srcdir	distrib/riscv/esp32s31/fptest
+SPECIAL	dhcpcd	srcdir	external/bsd/dhcpcd/sbin/dhcpcd
+SPECIAL	ftp	srcdir	distrib/riscv/esp32s31/x_ftp
+SPECIAL	ifconfig	srcdir	distrib/utils/x_ifconfig
+SPECIAL	ping	srcdir	distrib/utils/x_ping
+SPECIAL	ping6	srcdir	distrib/utils/x_ping6
+SPECIAL	route	srcdir	distrib/utils/x_route
 
 LIBS	libhack.o -ledit -lutil -lcurses -lterminfo -lkvm -lcrypt -lm -lprop -lbz2 -lz
 
@@ -101,6 +118,16 @@ COPY	${CURDIR}/etc/motd			etc/motd
 COPY	${CURDIR}/etc/profile			etc/profile
 COPY	${CURDIR}/etc/profile			root/.profile
 COPY	${CURDIR}/etc/fstab			etc/fstab
+COPY	${CURDIR}/etc/hosts			etc/hosts
+COPY	${CURDIR}/etc/dhcpcd.conf		etc/dhcpcd.conf
+COPY	${CURDIR}/etc/services		etc/services
+COPY	${NETBSDSRCDIR}/etc/protocols		etc/protocols
+COPY	${DESTDIR}/libexec/dhcpcd-run-hooks	libexec/dhcpcd-run-hooks 555
+COPY	${DESTDIR}/libexec/dhcpcd-hooks/20-resolv.conf libexec/dhcpcd-hooks/20-resolv.conf
+COPY	${DESTDIR}/libexec/dhcpcd-hooks/30-hostname libexec/dhcpcd-hooks/30-hostname
+
+# The root is read-only: dhcpcd's resolv.conf lives on tmpfs
+SYMLINK	/var/run/resolv.conf		etc/resolv.conf
 
 # password databases
 CMD	${TOOL_PWD_MKDB} -d . -p etc/master.passwd

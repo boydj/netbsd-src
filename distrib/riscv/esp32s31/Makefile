@@ -31,9 +31,11 @@ IMAGEDEPENDS=	${CRUNCHBIN} \
 		${.CURDIR}/etc/rc ${.CURDIR}/etc/ttys ${.CURDIR}/etc/gettytab \
 		${.CURDIR}/etc/master.passwd ${.CURDIR}/etc/motd \
 		${.CURDIR}/etc/profile ${.CURDIR}/etc/fstab \
+		${.CURDIR}/etc/hosts ${.CURDIR}/etc/dhcpcd.conf \
+		${DESTDIR}/libexec/dhcpcd-run-hooks \
 		${NETBSDSRCDIR}/etc/group
 
-MAKEDEVTARGETS=	std md0 ptm
+MAKEDEVTARGETS=	std md0 ptm bpf gpio
 
 # Use stubs to eliminate some large stuff from libc
 HACKSRC=	${DISTRIBDIR}/utils/libhack
