@@ -30,15 +30,12 @@ hostname esp32s31
 
 dmesg > /var/run/dmesg.boot
 
-# Network: loopback, then DHCP on any Ethernet interface (in the background,
-# so a missing cable doesn't hold up the login prompt).
+# Network: loopback, then DHCP on every Ethernet interface, including USB
+# adapters plugged in later.  dhcpcd goes to the background at once, so a
+# missing cable doesn't hold up the login prompt.
 ifconfig lo0 inet 127.0.0.1 up
-mkdir -p /var/db/dhcpcd /var/run/dhcpcd
-for ifc in $(ifconfig -l); do
-	case $ifc in
-	awge*)	dhcpcd -q -b $ifc ;;
-	esac
-done
+mkdir -p /var/db/dhcpcd /var/run/dhcpcd /var/spool/lock
+dhcpcd -q -b
 
 echo
 uname -a

@@ -38,6 +38,7 @@ PROG	sbin/mknod
 PROG	sbin/mount
 PROG	sbin/mount_ffs
 PROG	sbin/mount_kernfs
+PROG	sbin/mount_msdos
 PROG	sbin/mount_procfs
 PROG	sbin/mount_ptyfs
 PROG	sbin/mount_tmpfs
@@ -76,6 +77,7 @@ PROG	usr/bin/tee
 PROG	usr/bin/time
 PROG	usr/bin/touch
 PROG	usr/bin/tr
+PROG	usr/bin/tip	usr/bin/cu
 PROG	usr/bin/tset	usr/bin/reset
 PROG	usr/bin/uname
 PROG	usr/bin/fptest
@@ -91,6 +93,7 @@ PROG	usr/sbin/arp
 PROG	usr/sbin/chroot
 PROG	usr/sbin/gpioctl
 PROG	usr/sbin/pwd_mkdb
+PROG	usr/sbin/usbdevs
 
 PROG	usr/libexec/getty
 
