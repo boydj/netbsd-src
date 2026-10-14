@@ -176,6 +176,7 @@ struct espcp_shm {
 #define	ESPCP_CAP_WIFI		0x00000001
 #define	ESPCP_CAP_BT		0x00000002	/* BR/EDR and LE */
 #define	ESPCP_CAP_SENSORS	0x00000004	/* temperature, ADCs */
+#define	ESPCP_CAP_POWER		0x00000008	/* CPU clock, deep sleep */
 
 /*
  * Control channel.  Every message starts with struct espcp_ctl; replies
@@ -206,6 +207,7 @@ struct espcp_ctl {
 #define	ESPCP_CTL_BT_ENABLE	8
 #define	ESPCP_CTL_BT_DISABLE	9
 #define	ESPCP_CTL_SENSORS	10	/* espcp_sensors_req; reply: espcp_sensors */
+#define	ESPCP_CTL_POWER		11	/* espcp_power_req; reply: espcp_power */
 
 #define	ESPCP_EVT_WIFI_LINK	64	/* espcp_wifi_status */
 
@@ -286,6 +288,26 @@ struct espcp_sensors {
 	uint32_t	ss_adc_cal;	/* ... whose mV are calibrated */
 	int32_t		ss_adc_raw[ESPCP_ADC_CHANNELS];
 	int32_t		ss_adc_mv[ESPCP_ADC_CHANNELS];
+};
+
+/*
+ * Power.  The CPU clock is the both harts', so the firmware changes it
+ * (as ESP-IDF's own frequency scaling would: CPLL dividers only); deep
+ * sleep powers the whole chip down, until the timer or a low LP GPIO
+ * (0-7) wakes it, which is a reset.  POWER_OFF has no reply.
+ */
+struct espcp_power_req {
+	uint32_t	pr_op;
+#define	ESPCP_POWER_CPUFREQ	1	/* pr_arg: MHz, or 0 to ask */
+#define	ESPCP_POWER_OFF		2	/* pr_arg: seconds to wake after, or 0;
+					   pr_arg2: LP GPIOs to wake on */
+	uint32_t	pr_arg;
+	uint32_t	pr_arg2;
+};
+
+struct espcp_power {
+	uint32_t	ps_mhz;		/* the CPU clock now */
+	uint32_t	ps_avail[4];	/* those it may have, high to low */
 };
 
 /*

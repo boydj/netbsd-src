@@ -76,6 +76,7 @@ __RCSID("$NetBSD: riscv_machdep.c,v 1.51 2026/07/25 15:49:49 skrll Exp $");
 #include <dev/fdt/fdt_boot.h>
 #include <dev/fdt/fdt_console.h>
 #include <dev/fdt/fdt_memory.h>
+#include <dev/fdt/fdt_power.h>
 #include <dev/fdt/fdt_private.h>
 #include <dev/fdt/fdt_platform.h>
 
@@ -407,9 +408,12 @@ bootsync(void)
 }
 
 
+int riscv_reboot_howto;
+
 void
 cpu_reboot(int howto, char *bootstr)
 {
+	riscv_reboot_howto = howto;
 
 	/*
 	 * If RB_NOSYNC was not specified sync the discs.
@@ -446,6 +450,8 @@ cpu_reboot(int howto, char *bootstr)
 	if (howto & RB_HALT) {
 		if (howto & RB_POWERDOWN) {
 			printf("power off...\n");
+			/* A power controller of the platform's first. */
+			fdtbus_power_poweroff();
 			sbi_system_reset(SBI_RESET_TYPE_SHUTDOWN,
 					 SBI_RESET_REASON_NONE);
 		} /* FALLTHRU */

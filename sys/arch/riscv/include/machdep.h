@@ -72,6 +72,9 @@ uint32_t
 	riscv_timer_frequency_get(void);	// which header?
 void	riscv_timer_register(void (*timerfn)(void));
 void	riscv_delay_register(void (*delayfn)(unsigned long));
+
+/* cpu_reboot()'s howto, for shutdown hooks that act on it */
+extern	int riscv_reboot_howto;
 void	riscv_intr_set_handler(void (*intr_handler)(struct trapframe *,
 	    register_t, register_t, register_t));
 

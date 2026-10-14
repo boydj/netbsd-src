@@ -51,10 +51,14 @@ __KERNEL_RCSID(0, "$NetBSD$");
 #include <sys/mutex.h>
 #include <sys/queue.h>
 #include <sys/reboot.h>
+#include <sys/sysctl.h>
 #include <sys/syslog.h>
 #include <sys/systm.h>
 
 #include <dev/fdt/fdtvar.h>
+#include <dev/fdt/fdt_power.h>
+
+#include <riscv/machdep.h>
 
 #include <riscv/espressif/esp32s31_reg.h>
 #include <riscv/espressif/esp32s31_var.h>
@@ -126,6 +130,13 @@ struct espcp_softc {
 	char			sc_logline[160];
 	size_t			sc_loglen;
 
+	/* power: the CPU clock, and deep sleep for power-off */
+	u_int			sc_cpumhz;
+	char			sc_cpuavail[32];
+	u_int			sc_wake_secs;
+	u_int			sc_wake_gpios;
+	struct sysctllog	*sc_sysctllog;
+
 	struct evcnt		sc_ev_intr;
 	struct evcnt		sc_ev_rxmsg;
 	struct evcnt		sc_ev_txmsg;
@@ -135,6 +146,7 @@ struct espcp_softc {
 static int	espcp_match(device_t, cfdata_t, void *);
 static void	espcp_attach(device_t, device_t, void *);
 static void	espcp_start(device_t);
+static void	espcp_power_init(struct espcp_softc *);
 static int	espcp_intr(void *);
 static void	espcp_softintr(void *);
 static void	espcp_tick(void *);
@@ -454,6 +466,8 @@ espcp_start(device_t self)
 		ea.ea_addr = NULL;
 		config_found(self, &ea, espcp_print, CFARGS_NONE);
 	}
+	if (sc->sc_shm->es_caps & ESPCP_CAP_POWER)
+		espcp_power_init(sc);
 }
 
 static void
@@ -461,8 +475,147 @@ espcp_shutdown(void *arg)
 {
 	struct espcp_softc * const sc = arg;
 
+	/* Powering off: the firmware does it, so leave it running. */
+	if ((riscv_reboot_howto & (RB_HALT | RB_POWERDOWN)) ==
+	    (RB_HALT | RB_POWERDOWN) &&
+	    (sc->sc_shm->es_caps & ESPCP_CAP_POWER) != 0)
+		return;
 	sc->sc_running = false;
 	(void)esp32s31_sbi_vendor_call(S31_SBI_HART1_RESET, 0, 0);
+}
+
+/* ------------------------------------------------------------------------
+ * Power: the CPU clock (both harts'), and power-off as deep sleep.
+ */
+
+static int
+espcp_cpufreq(struct espcp_softc *sc, u_int mhz)
+{
+	const struct espcp_power_req req = {
+		.pr_op = ESPCP_POWER_CPUFREQ,
+		.pr_arg = mhz,
+	};
+	struct espcp_power ps;
+	size_t len = sizeof(ps);
+	int error;
+
+	error = espcp_ctl(sc->sc_dev, ESPCP_CTL_POWER, &req, sizeof(req),
+	    &ps, &len, 2000);
+	if (error == 0 && len >= sizeof(ps)) {
+		sc->sc_cpumhz = ps.ps_mhz;
+		sc->sc_cpuavail[0] = '\0';
+		for (u_int i = 0; i < __arraycount(ps.ps_avail) &&
+		    ps.ps_avail[i] != 0; i++) {
+			char buf[8];
+
+			snprintf(buf, sizeof(buf), i ? " %u" : "%u",
+			    ps.ps_avail[i]);
+			strlcat(sc->sc_cpuavail, buf, sizeof(sc->sc_cpuavail));
+		}
+	}
+	return error;
+}
+
+static int
+espcp_sysctl_cpufreq(SYSCTLFN_ARGS)
+{
+	struct sysctlnode node = *rnode;
+	struct espcp_softc * const sc = node.sysctl_data;
+	int mhz, error;
+
+	if ((error = espcp_cpufreq(sc, 0)) != 0)
+		return error;
+	mhz = sc->sc_cpumhz;
+	node.sysctl_data = &mhz;
+	error = sysctl_lookup(SYSCTLFN_CALL(&node));
+	if (error || newp == NULL)
+		return error;
+	if ((error = espcp_cpufreq(sc, mhz)) != 0)
+		return error;
+	return sc->sc_cpumhz == (u_int)mhz ? 0 : EINVAL;
+}
+
+/* Power off: deep sleep, until the timer or an LP GPIO wakes the chip. */
+static void
+espcp_poweroff(device_t dev)
+{
+	struct espcp_softc * const sc = device_private(dev);
+	const struct espcp_power_req req = {
+		.pr_op = ESPCP_POWER_OFF,
+		.pr_arg = sc->sc_wake_secs,
+		.pr_arg2 = sc->sc_wake_gpios,
+	};
+
+	if (!espcp_running(dev))
+		return;
+	if (sc->sc_wake_secs != 0)
+		printf("%s: deep sleep, waking in %u s\n", device_xname(dev),
+		    sc->sc_wake_secs);
+	else
+		printf("%s: deep sleep\n", device_xname(dev));
+	if (espcp_ctl_async(dev, ESPCP_CTL_POWER, &req, sizeof(req)) != 0)
+		return;
+	/* It takes the firmware a moment; then this hart is off too. */
+	for (u_int i = 0; i < 3000; i++)
+		DELAY(1000);
+	printf("%s: no deep sleep\n", device_xname(dev));
+}
+
+static const struct fdtbus_power_controller_func espcp_power_funcs = {
+	.poweroff = espcp_poweroff,
+};
+
+static void
+espcp_power_init(struct espcp_softc *sc)
+{
+	const struct sysctlnode *node, *cpunode;
+	device_t self = sc->sc_dev;
+
+	if (espcp_cpufreq(sc, 0) == 0) {
+		aprint_normal_dev(self, "CPU clock %u MHz (%s)\n",
+		    sc->sc_cpumhz, sc->sc_cpuavail);
+		if (sysctl_createv(&sc->sc_sysctllog, 0, NULL, &node,
+		    CTLFLAG_PERMANENT, CTLTYPE_NODE, "machdep", NULL,
+		    NULL, 0, NULL, 0, CTL_MACHDEP, CTL_EOL) == 0 &&
+		    sysctl_createv(&sc->sc_sysctllog, 0, &node, &node, 0,
+		    CTLTYPE_NODE, "cpufreq", NULL, NULL, 0, NULL, 0,
+		    CTL_CREATE, CTL_EOL) == 0 &&
+		    sysctl_createv(&sc->sc_sysctllog, 0, &node, &cpunode, 0,
+		    CTLTYPE_NODE, "cpu0", NULL, NULL, 0, NULL, 0,
+		    CTL_CREATE, CTL_EOL) == 0) {
+			sysctl_createv(&sc->sc_sysctllog, 0, &cpunode, NULL,
+			    CTLFLAG_READWRITE, CTLTYPE_INT, "target",
+			    SYSCTL_DESCR("CPU clock to run at, MHz"),
+			    espcp_sysctl_cpufreq, 0, (void *)sc, 0,
+			    CTL_CREATE, CTL_EOL);
+			sysctl_createv(&sc->sc_sysctllog, 0, &cpunode, NULL,
+			    CTLFLAG_READWRITE, CTLTYPE_INT, "current",
+			    SYSCTL_DESCR("CPU clock, MHz"),
+			    espcp_sysctl_cpufreq, 0, (void *)sc, 0,
+			    CTL_CREATE, CTL_EOL);
+			sysctl_createv(&sc->sc_sysctllog, 0, &cpunode, NULL,
+			    0, CTLTYPE_STRING, "available",
+			    SYSCTL_DESCR("CPU clocks, MHz"), NULL, 0,
+			    sc->sc_cpuavail, 0, CTL_CREATE, CTL_EOL);
+		}
+	}
+
+	if (sysctl_createv(&sc->sc_sysctllog, 0, NULL, &node, 0,
+	    CTLTYPE_NODE, device_xname(self), SYSCTL_DESCR("co-processor"),
+	    NULL, 0, NULL, 0, CTL_HW, CTL_CREATE, CTL_EOL) == 0) {
+		sysctl_createv(&sc->sc_sysctllog, 0, &node, NULL,
+		    CTLFLAG_READWRITE, CTLTYPE_INT, "poweroff_wake_secs",
+		    SYSCTL_DESCR("power-off: wake (reboot) after this long"),
+		    NULL, 0, &sc->sc_wake_secs, 0, CTL_CREATE, CTL_EOL);
+		sysctl_createv(&sc->sc_sysctllog, 0, &node, NULL,
+		    CTLFLAG_READWRITE, CTLTYPE_INT, "poweroff_wake_gpios",
+		    SYSCTL_DESCR("power-off: wake when one of these GPIO0-7 "
+		    "(a mask) goes low"),
+		    NULL, 0, &sc->sc_wake_gpios, 0, CTL_CREATE, CTL_EOL);
+	}
+
+	fdtbus_register_power_controller(self, sc->sc_phandle,
+	    &espcp_power_funcs);
 }
 
 /* ------------------------------------------------------------------------
