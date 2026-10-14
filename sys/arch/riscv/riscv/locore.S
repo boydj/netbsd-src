@@ -211,10 +211,18 @@ ENTRY_NP(start)
 
 	// a0	start of memory to clear
 	// a1	end of memory to clear
+	//
+	// lwp0uspace, the boot stack and the initial page tables live in
+	// .data, i.e. below __bss_start, so clear .bss and the page tables
+	// separately.  Nothing guarantees that memory is zero at boot
+	// (e.g. PSRAM after a warm reset).
 	PTR_LA	a0, _C_LABEL(__bss_start)
-	mv	a1, s7
+	PTR_LA	a1, _C_LABEL(_end)
+	call	clear_bss		// zero .bss
 
-	call	clear_bss		// zero through kernel_end (inc. stack)
+	PTR_LA	a0, mmutables_start
+	mv	a1, s7
+	call	clear_bss		// zero the bootstrap page tables
 
 	li	s7, PTE_V		// page table pointer {X,W,R} = {0,0,0}
 
