@@ -36,7 +36,7 @@ IMAGEDEPENDS=	${CRUNCHBIN} \
 		${DESTDIR}/libexec/dhcpcd-run-hooks \
 		${NETBSDSRCDIR}/etc/group
 
-MAKEDEVTARGETS=	std md0 ptm bpf gpio usb0 usb1 ugen0 ugen1 sd0 sd1 \
+MAKEDEVTARGETS=	std md0 ptm bpf gpio ld0 usb0 usb1 ugen0 ugen1 sd0 sd1 \
 		ttyU0 ttyU1 ttyEU0 ttyUSJ0
 
 # Use stubs to eliminate some large stuff from libc
