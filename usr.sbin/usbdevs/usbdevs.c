@@ -107,6 +107,19 @@ u2t(const char *utf8str, char *termstr)
 			*termstr = '\0';
 			return;
 		}
+	} else {
+		/*
+		 * No converter (e.g. a static binary without the iconv
+		 * modules): show ASCII as is and anything else as '?'.
+		 */
+		for (insz = 0; utf8str[insz] != '\0' && insz < MAXLEN - 1;
+		    insz++) {
+			const unsigned char ch = (unsigned char)utf8str[insz];
+
+			termstr[insz] = (ch >= 0x20 && ch < 0x7f) ? ch : '?';
+		}
+		termstr[insz] = '\0';
+		return;
 	}
 	strcpy(termstr, "(invalid)");
 }
