@@ -127,7 +127,11 @@ esp_gmac_set_speed(struct dwc_gmac_softc *sc, int speed)
 		    rate);
 }
 
-/* Factory MAC address from eFuse, or a fixed local one. */
+/*
+ * Factory MAC address from eFuse, or a fixed local one.  As in ESP-IDF, the
+ * eFuse address is the base of four: Wi-Fi station, soft-AP, Bluetooth,
+ * then Ethernet (the radio co-processor's interfaces use the first ones).
+ */
 static void
 esp_gmac_get_enaddr(struct dwc_gmac_softc *sc, uint8_t enaddr[ETHER_ADDR_LEN])
 {
@@ -160,7 +164,9 @@ esp_gmac_get_enaddr(struct dwc_gmac_softc *sc, uint8_t enaddr[ETHER_ADDR_LEN])
 		memcpy(enaddr, fallback, ETHER_ADDR_LEN);
 		aprint_normal_dev(sc->sc_dev,
 		    "no factory MAC address in eFuse, using a local one\n");
+		return;
 	}
+	enaddr[ETHER_ADDR_LEN - 1] += 3;
 }
 
 /* The PHY address from the device tree's mdio node, or MII_PHY_ANY. */
