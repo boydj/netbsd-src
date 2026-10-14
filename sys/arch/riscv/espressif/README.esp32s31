@@ -1,0 +1,89 @@
+$NetBSD$
+
+NetBSD/riscv32 on the Espressif ESP32-S31
+=========================================
+
+The ESP32-S31 is a dual-core RV32IMAFC SoC (plus Zba/Zbb/Zbc/Zbs) with
+an Sv32 MMU, up to 16MiB of PSRAM and 16MiB of quad SPI flash.  The
+ESP32S31 kernel runs it as a uniprocessor riscv32 system with a
+soft-float userland and a memory disk root.
+
+Boot chain and flash layout
+---------------------------
+
+NetBSD uses Espressif's own boot firmware unmodified (the "integration"
+esp32s31 branches of espressif/opensbi and espressif/u-boot), with the
+same flash layout as Espressif's Linux BSP:
+
+	flash	XIP		contents
+	0x002000		U-Boot SPL (ESP image, loaded by the ROM)
+	0x100000		u-boot.itb: OpenSBI fw_dynamic + U-Boot
+	0x300000 0x40200000	device tree (esp32s31.dts)
+	0x500000 0x40400000	netbsd-esp32s31.img
+
+U-Boot's default "booti 0x40400000 - 0x40200000" starts the image in
+place from the flash XIP window, in S-mode, with a0 = hart id and
+a1 = device tree.  The image is loader/loader.S with the kernel appended:
+it moves the device tree past the end of the kernel, copies the kernel to
+the start of PSRAM (0x50000000), synchronises the instruction cache
+through the SBI vendor extension and jumps to it.  As in Espressif's BSP,
+the SPL's ESP image header must say DIO at 80MHz (esptool elf2image
+--flash-mode dio --flash-freq 80m); with esptool's QIO default the ROM
+reads the SPL incorrectly.
+
+The console is UART0 at 115200 baud, as set up by the ROM and U-Boot.
+
+Building
+--------
+
+	./build.sh -m riscv -a riscv32 tools
+	(static libraries, see below)
+	cd distrib/riscv/esp32s31 && nbmake-riscv
+	./build.sh -m riscv -a riscv32 kernel=ESP32S31
+	riscv32--netbsd-mdsetimage netbsd esp32s31-root.fs
+
+riscv32 defaults to MKSOFTFLOAT=yes (-march=rv32imac_zicsr_zifencei
+-mabi=ilp32).  The ramdisk only needs a few static libraries: csu,
+libgcc, libc, libutil, libterminfo, libcurses, libedit, libkvm, libcrypt,
+libm, libprop, libbz2 and libz.  Building those, the boot firmware, the
+flash image and a QEMU machine model for the chip is scripted in the
+esp32s31-netbsd helper repository.
+
+Implementation notes
+--------------------
+
+Interrupts.  The harts run in CLIC mode (xtvec.mode = 3).  sie/sip do not
+exist, stvec must be 64-byte aligned, scause carries the previous
+interrupt level (SPIL) and aliases of SPP/SPIE, and sret restores the
+level.  options RISCV_CLIC adapts locore, the trap path and spl(9): IPLs
+at or above IPL_VM block through sstatus.SIE.  OpenSBI delegates CLIC
+ids 16-47 to S-mode; espclic(4) drives that bank and espintmtx routes
+peripheral interrupt sources to it.
+
+Time.  The time CSR is emulated by OpenSBI and stops in wfi, so the
+16MHz SYSTIMER (espsystimer) provides the timecounter, hardclock (the
+TARGET0 alarm, one-shot) and delay(9).
+
+Caches.  The L1/L2 caches sit outside the harts and fence.i does not
+make them coherent.  Instruction cache maintenance goes through
+OpenSBI's vendor extension (EID 0x09000000 + mvendorid), installed as
+riscv_icache_sync_{all,range}_hook.
+
+Memory.  On RV32 the 32MiB kernel megapage window doubles as the direct
+map, so physical memory is limited to that window (all of the PSRAM).
+About 11MiB is left for the system after the kernel and its memory disk.
+
+Entropy.  esptrng reads the hardware TRNG and credits it conservatively
+(one bit per byte), after start-up and continuous repetition tests.
+
+Status and limitations
+----------------------
+
+Tested in a QEMU model of the chip (CLIC, interrupt matrix, SYSTIMER,
+UART, TRNG) and in Espressif's esp-emulator, which runs the real mask
+ROM.  Not yet tested on silicon.
+
+Not supported yet: the second hart (MULTIPROCESSOR), the FPU (userland
+is soft-float), Wi-Fi/BLE, Ethernet, SD/MMC, the SPI flash as a disk,
+GPIO, the USB Serial/JTAG console, and an RTC (the date comes from the
+root file system).
