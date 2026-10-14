@@ -192,6 +192,25 @@
 			#pwm-cells = <3>;
 		};
 
+		/* TWAI: CAN controllers */
+		twai0: can@20394000 {
+			compatible = "espressif,esp32s31-twai";
+			reg = <0x20394000 0x1000>;
+			interrupt-parent = <&intmtx>;
+			interrupts = <18 4>;
+			clocks = <&clkrst 23>;
+			resets = <&clkrst 15>;
+		};
+
+		twai1: can@20395000 {
+			compatible = "espressif,esp32s31-twai";
+			reg = <0x20395000 0x1000>;
+			interrupt-parent = <&intmtx>;
+			interrupts = <20 4>;
+			clocks = <&clkrst 24>;
+			resets = <&clkrst 16>;
+		};
+
 		/* Analog comparator: GPIO37-40, off until configured */
 		comparator@2039a000 {
 			compatible = "espressif,esp32s31-ana-cmpr";

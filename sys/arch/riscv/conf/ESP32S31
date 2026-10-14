@@ -45,6 +45,7 @@ options 	PIPE_SOCKETPAIR		# smaller, but slower pipe(2)
 # Networking
 options 	INET			# IPv4
 options 	INET6			# IPv6
+options 	CAN			# CAN sockets (esptwai)
 
 # File systems
 file-system 	FFS		# UFS
@@ -92,6 +93,7 @@ espcrypto*	at fdt?			# AES, SHA, RSA accelerators
 espcmpr*	at fdt?			# analog comparator (envstat)
 espledc*	at fdt?			# LED PWM controllers
 espmcpwm*	at fdt?			# motor control PWM
+esptwai*	at fdt?			# CAN controllers
 pseudo-device	crypto			# /dev/crypto
 pseudo-device	swcrypto		# software algorithms for opencrypto
 
@@ -150,6 +152,7 @@ rgephy*		at mii? phy ?
 ugen*		at uhub? port ? configuration ? interface ?
 
 pseudo-device	loop			# network loopback
+pseudo-device	canloop			# CAN loopback interface
 pseudo-device	bpfilter		# packet filter (dhcpcd)
 pseudo-device	pty			# pseudo-terminals
 pseudo-device	clockctl		# user control of clock subsystem

@@ -33,6 +33,7 @@ PROG	bin/test	bin/[
 PROG	sbin/dhcpcd
 PROG	sbin/dmesg
 PROG	sbin/fdisk
+PROG	sbin/canconfig
 PROG	sbin/fsck_ffs
 PROG	sbin/ifconfig
 PROG	sbin/init
@@ -87,6 +88,7 @@ PROG	usr/bin/tset	usr/bin/reset
 PROG	usr/bin/uname
 PROG	usr/bin/fptest
 PROG	usr/bin/btkey
+PROG	usr/bin/cansend	usr/bin/candump
 PROG	usr/bin/btpin
 PROG	usr/bin/rfcomm_sppd
 PROG	usr/bin/sdpquery
@@ -122,6 +124,7 @@ SPECIAL	sntpdate	srcdir	distrib/riscv/esp32s31/sntpdate
 SPECIAL	espwifictl	srcdir	distrib/riscv/esp32s31/espwifictl
 SPECIAL	i2cxfer	srcdir	distrib/riscv/esp32s31/i2cxfer
 SPECIAL	spixfer	srcdir	distrib/riscv/esp32s31/spixfer
+SPECIAL	cansend	srcdir	distrib/riscv/esp32s31/cansend
 SPECIAL	dhcpcd	srcdir	distrib/riscv/esp32s31/x_dhcpcd
 SPECIAL	ftp	srcdir	distrib/riscv/esp32s31/x_ftp
 SPECIAL	ifconfig	srcdir	distrib/utils/x_ifconfig

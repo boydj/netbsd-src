@@ -102,6 +102,11 @@ device	espmcpwm: fdt_pwm
 attach	espmcpwm at fdt with esp_mcpwm
 file	arch/riscv/espressif/esp_pwm.c		esp_ledc | esp_mcpwm
 
+# TWAI: CAN controllers (CTU CAN FD cores)
+device	esptwai: ifnet
+attach	esptwai at fdt with esp_twai
+file	arch/riscv/espressif/esp_twai.c		esp_twai
+
 # Analog comparator
 device	espcmpr: sysmon_envsys
 attach	espcmpr at fdt with esp_cmpr
