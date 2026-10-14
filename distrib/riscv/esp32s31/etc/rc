@@ -30,6 +30,18 @@ hostname esp32s31
 
 dmesg > /var/run/dmesg.boot
 
+# Terminals (/etc/ttys links here): a login on the console, and on the
+# UART and the USB-Serial/JTAG port unless one of them is the console.
+cons=$(sysctl -n kern.consdev 2>/dev/null)
+{
+	echo 'console	"/usr/libexec/getty std.115200"	vt100	on secure'
+	for t in ttyEU0:espuart0 ttyUSJ0:espusj0; do
+		tty=${t%:*} dev=${t#*:}
+		[ "$tty" != "$cons" ] && grep -q "^\[.*\] $dev at" /var/run/dmesg.boot &&
+		    echo "$tty	\"/usr/libexec/getty std.115200\"	vt100	on secure"
+	done
+} > /var/run/ttys
+
 # Network: loopback, then DHCP on every Ethernet interface, including USB
 # adapters plugged in later.  dhcpcd goes to the background at once, so a
 # missing cable doesn't hold up the login prompt.

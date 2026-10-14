@@ -28,7 +28,7 @@ PARSELISTENV+=	TOOL_PWD_MKDB=${TOOL_PWD_MKDB:Q}
 CRUNCHENV+=	USE_PAM=no USE_SKEY=no USE_KERBEROS=no USE_YP=no
 
 IMAGEDEPENDS=	${CRUNCHBIN} \
-		${.CURDIR}/etc/rc ${.CURDIR}/etc/ttys ${.CURDIR}/etc/gettytab \
+		${.CURDIR}/etc/rc ${.CURDIR}/etc/gettytab \
 		${.CURDIR}/etc/master.passwd ${.CURDIR}/etc/motd \
 		${.CURDIR}/etc/profile ${.CURDIR}/etc/fstab \
 		${.CURDIR}/etc/hosts ${.CURDIR}/etc/dhcpcd.conf \
@@ -36,7 +36,7 @@ IMAGEDEPENDS=	${CRUNCHBIN} \
 		${NETBSDSRCDIR}/etc/group
 
 MAKEDEVTARGETS=	std md0 ptm bpf gpio usb0 usb1 ugen0 ugen1 sd0 sd1 \
-		ttyU0 ttyU1
+		ttyU0 ttyU1 ttyEU0 ttyUSJ0
 
 # Use stubs to eliminate some large stuff from libc
 HACKSRC=	${DISTRIBDIR}/utils/libhack

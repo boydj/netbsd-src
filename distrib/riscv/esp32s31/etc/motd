@@ -1,6 +1,5 @@
-
 Welcome to NetBSD on the Espressif ESP32-S31!
 
-  RV32IMAC + Sv32 MMU, 16 MiB PSRAM, running out of an in-kernel memory
-  disk.  /tmp and /var are tmpfs; changes are lost at reset.
-
+  RV32IMAFC + Sv32 MMU, 16 MiB PSRAM.  The root file system is read-only,
+  straight from SPI flash; /tmp, /var and /root are in memory, so changes
+  are lost at reset.  USB sticks: mount -t msdos /dev/sd0e /mnt

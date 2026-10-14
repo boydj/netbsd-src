@@ -100,7 +100,7 @@ PROG	usr/libexec/getty
 SPECIAL	awk	srcdir	external/historical/nawk/bin
 SPECIAL	vi	srcdir	external/bsd/nvi/usr.bin/nvi
 SPECIAL	fptest	srcdir	distrib/riscv/esp32s31/fptest
-SPECIAL	dhcpcd	srcdir	external/bsd/dhcpcd/sbin/dhcpcd
+SPECIAL	dhcpcd	srcdir	distrib/riscv/esp32s31/x_dhcpcd
 SPECIAL	ftp	srcdir	distrib/riscv/esp32s31/x_ftp
 SPECIAL	ifconfig	srcdir	distrib/utils/x_ifconfig
 SPECIAL	ping	srcdir	distrib/utils/x_ping
@@ -115,7 +115,6 @@ ARGVLN	sh -sh
 COPY	${NETBSDSRCDIR}/etc/group		etc/group
 COPY	${CURDIR}/etc/master.passwd		etc/master.passwd 600
 COPY	${CURDIR}/etc/rc			etc/rc 755
-COPY	${CURDIR}/etc/ttys			etc/ttys
 COPY	${CURDIR}/etc/gettytab			etc/gettytab
 COPY	${CURDIR}/etc/motd			etc/motd
 COPY	${CURDIR}/etc/profile			etc/profile
@@ -131,6 +130,7 @@ COPY	${DESTDIR}/libexec/dhcpcd-hooks/30-hostname libexec/dhcpcd-hooks/30-hostnam
 
 # The root is read-only: dhcpcd's resolv.conf lives on tmpfs
 SYMLINK	/var/run/resolv.conf		etc/resolv.conf
+SYMLINK	/var/run/ttys			etc/ttys
 
 # password databases
 CMD	${TOOL_PWD_MKDB} -d . -p etc/master.passwd
