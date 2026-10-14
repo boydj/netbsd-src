@@ -179,10 +179,11 @@ esp_clic_establish(u_int id, int ipl, int flags, int (*func)(void *),
 	ih->ih_arg = arg;
 
 	const int s = splhigh();
-	if (TAILQ_EMPTY(&cs->cs_handlers)) {
+	const bool first = TAILQ_EMPTY(&cs->cs_handlers);
+	if (first) {
 		cs->cs_ipl = ipl;
 		cs->cs_mpsafe = mpsafe;
-		snprintf(cs->cs_name, sizeof(cs->cs_name), "clic %u%s%s", id,
+		snprintf(cs->cs_name, sizeof(cs->cs_name), "%u%s%s", id,
 		    xname ? " " : "", xname ? xname : "");
 	} else if (cs->cs_ipl != ipl || cs->cs_mpsafe != mpsafe) {
 		splx(s);
@@ -204,6 +205,11 @@ esp_clic_establish(u_int id, int ipl, int flags, int (*func)(void *),
 	CLIC_WRITE1(sc, CLIC_INTIE(id), 1);
 	splx(s);
 
+	if (first) {
+		evcnt_attach_dynamic(&cs->cs_ev, EVCNT_TYPE_INTR, NULL, "clic",
+		    cs->cs_name);
+	}
+
 	return ih;
 }
 
@@ -216,9 +222,13 @@ esp_clic_disestablish(void *cookie)
 
 	const int s = splhigh();
 	TAILQ_REMOVE(&cs->cs_handlers, ih, ih_next);
-	if (TAILQ_EMPTY(&cs->cs_handlers))
+	const bool last = TAILQ_EMPTY(&cs->cs_handlers);
+	if (last)
 		CLIC_WRITE1(sc, CLIC_INTIE(cs->cs_id), 0);
 	splx(s);
+
+	if (last)
+		evcnt_detach(&cs->cs_ev);
 
 	kmem_free(ih, sizeof(*ih));
 }
