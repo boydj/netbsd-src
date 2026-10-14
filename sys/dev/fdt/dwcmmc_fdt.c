@@ -66,6 +66,12 @@ static const struct dwcmmc_fdt_config dwcmmc_rk3288_config = {
 	.intr_cardmask = __BIT(24),
 };
 
+static const struct dwcmmc_fdt_config dwcmmc_esp32s31_config = {
+	.ciu_div = 2,
+	.flags = DWC_MMC_F_USE_HOLD_REG |
+		 DWC_MMC_F_DMA,
+};
+
 static const struct dwcmmc_fdt_config dwmmc_default_config = {
 	.flags = DWC_MMC_F_USE_HOLD_REG |
 		 DWC_MMC_F_DMA,
@@ -73,6 +79,7 @@ static const struct dwcmmc_fdt_config dwmmc_default_config = {
 
 static const struct device_compatible_entry compat_data[] = {
 	{ .compat = "rockchip,rk3288-dw-mshc",	.data = &dwcmmc_rk3288_config },
+	{ .compat = "espressif,esp32s31-dw-mshc", .data = &dwcmmc_esp32s31_config },
 	{ .compat = "snps,dw-mshc",		.data = &dwmmc_default_config },
 	{ .compat = "starfive,jh7110-mmc",	.data = &dwmmc_default_config },
 	DEVICE_COMPAT_EOL
@@ -107,6 +114,7 @@ dwcmmc_fdt_attach(device_t parent, device_t self, void *aux)
 	struct dwc_mmc_softc *sc = &esc->sc;
 	struct fdt_attach_args * const faa = aux;
 	const int phandle = faa->faa_phandle;
+	struct fdtbus_reset *rst;
 	char intrstr[128];
 	u_int fifo_depth;
 	bus_addr_t addr;
@@ -142,6 +150,13 @@ dwcmmc_fdt_attach(device_t parent, device_t self, void *aux)
 	error = clk_enable(esc->sc_clk_ciu);
 	if (error) {
 		aprint_error(": couldn't enable clock ciu: %d\n", error);
+		return;
+	}
+
+	/* Take the controller out of its optional reset. */
+	rst = fdtbus_reset_get_index(phandle, 0);
+	if (rst != NULL && fdtbus_reset_deassert(rst) != 0) {
+		aprint_error(": couldn't de-assert reset\n");
 		return;
 	}
 

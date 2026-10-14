@@ -210,7 +210,7 @@ attach	xhci at fdt with dwc3_fdt: fdt_clock, fdt_phy, fdt_reset
 file	dev/fdt/dwc3_fdt.c			dwc3_fdt
 
 # Designware SD/MMC
-attach	dwcmmc at fdt with dwcmmc_fdt: fdt_clock, fdt_gpio, fdt_mmc_pwrseq, fdt_regulator
+attach	dwcmmc at fdt with dwcmmc_fdt: fdt_clock, fdt_gpio, fdt_mmc_pwrseq, fdt_regulator, fdt_reset
 file	dev/fdt/dwcmmc_fdt.c			dwcmmc_fdt
 
 # Designware Watchdog Timer
