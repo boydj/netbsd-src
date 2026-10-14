@@ -532,7 +532,7 @@ esp_clkrst_read(struct esp_clkrst_softc *sc, u_int map, bus_size_t reg)
 /* clk(9) backend */
 
 static const char * const esp_parent_names[NPARENTS] = {
-	[PARENT_XTAL] = "xtal", [PARENT_MPLL] = "mpll", [PARENT_12M] = "12m",
+	[PARENT_XTAL] = "xtal", [PARENT_MPLL] = "mpll", [PARENT_12M] = "usb_12m",
 	[PARENT_RC_FAST] = "rc_fast", [PARENT_F80M] = "ref_f80m",
 	[PARENT_F160M] = "pll_f160m", [PARENT_F240M] = "pll_f240m",
 	[PARENT_PLL480] = "bbpll",
