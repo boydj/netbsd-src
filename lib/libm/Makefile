@@ -218,11 +218,12 @@ WARNS?=5
 EXPSYM_SRCS=	m.common.expsym m.vax.expsym
 
 .elif (${LIBC_MACHINE_CPU} == "riscv")
-.PATH:	${.CURDIR}/arch/riscv
 
 COMMON_SRCS+= s_nexttoward.c s_rintl.c
 
 .if ${MKSOFTFLOAT} == "no"
+# The arch sources use F/D instructions (and would shadow the C versions).
+.PATH:	${.CURDIR}/arch/riscv
 COMMON_SRCS += fenv.c
 ARCH_SRCS = e_sqrt.S e_sqrtf.S
 ARCH_SRCS += s_copysign.S s_copysignf.S

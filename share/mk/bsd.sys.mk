@@ -208,7 +208,8 @@ COPTS+=	${${ACTIVE_CC} == "gcc":? --param ssp-buffer-size=1 :}
 
 .if ${MKSOFTFLOAT:Uno} != "no"
 # sh3 defaults to soft-float and specifies hard-float a different way
-.if ${MACHINE_CPU} != "sh3"
+# riscv selects soft-float via -mabi (the toolchain default for riscv32)
+.if ${MACHINE_CPU} != "sh3" && ${MACHINE_CPU} != "riscv"
 COPTS+=		${${ACTIVE_CC} == "gcc":? -msoft-float :}
 FOPTS+=		-msoft-float
 .endif

@@ -8,6 +8,8 @@
 #ifndef _RISCV_FENV_H_
 #define _RISCV_FENV_H_
 
+#include <sys/cdefs.h>
+
 typedef int fenv_t;		/* FPSCR */
 typedef int fexcept_t;
 
@@ -24,6 +26,31 @@ typedef int fexcept_t;
 #define	FE_TOWARDZERO	1	/* round to zero (truncate) */
 #define	FE_DOWNWARD	2	/* round toward negative infinity */
 #define	FE_UPWARD	3	/* round toward positive infinity */
+
+#ifdef _SOFT_FLOAT
+/*
+ * Soft-float (e.g. RV32IMAC, ilp32): the environment is kept in the fcsr
+ * layout, plus the (software only) exception mask.
+ */
+#define	__FENV_FLAGS	__BITS(4, 0)	/* fcsr.fflags */
+#define	__FENV_ROUND	__BITS(7, 5)	/* fcsr.frm */
+#define	__FENV_MASK	__BITS(12, 8)	/* software trap enables */
+
+#define	__FENV_GET_FLAGS(__envp)	__SHIFTOUT(*(__envp), __FENV_FLAGS)
+#define	__FENV_GET_MASK(__envp)		__SHIFTOUT(*(__envp), __FENV_MASK)
+#define	__FENV_GET_ROUND(__envp)	__SHIFTOUT(*(__envp), __FENV_ROUND)
+#define	__FENV_SET_FLAGS(__envp, __val) \
+	(*(__envp) = (*(__envp) & ~__FENV_FLAGS) | \
+	    __SHIFTIN((__val), __FENV_FLAGS))
+#define	__FENV_SET_MASK(__envp, __val) \
+	(*(__envp) = (*(__envp) & ~__FENV_MASK) | \
+	    __SHIFTIN((__val), __FENV_MASK))
+#define	__FENV_SET_ROUND(__envp, __val) \
+	(*(__envp) = (*(__envp) & ~__FENV_ROUND) | \
+	    __SHIFTIN((__val), __FENV_ROUND))
+
+#define	__HAVE_FENV_SOFTFLOAT_DEFS
+#endif /* _SOFT_FLOAT */
 
 __BEGIN_DECLS
 

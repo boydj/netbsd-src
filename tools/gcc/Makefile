@@ -28,7 +28,8 @@ GCC_LANGUAGES+= fortran
 .endif
 
 .if ${MKSOFTFLOAT} != "no" && ${MACHINE_CPU} != "m68k" \
-    && ${MACHINE_CPU} != "or1k" && ${MACHINE_CPU} != "sh3"
+    && ${MACHINE_CPU} != "or1k" && ${MACHINE_CPU} != "sh3" \
+    && ${MACHINE_CPU} != "riscv"
 SOFTFLOAT_ARGS=	-with-float=soft
 .endif
 
@@ -46,6 +47,9 @@ COMMON_CONFIGURE_ARGS=	--target=${MACHINE_GNU_PLATFORM} \
 			--with-diagnostics-color=auto-if-env
 .if defined(GCC_CONFIG_ARCH.${MACHINE_ARCH})
 COMMON_CONFIGURE_ARGS+=	--with-arch=${GCC_CONFIG_ARCH.${MACHINE_ARCH}}
+.endif
+.if defined(GCC_CONFIG_ABI.${MACHINE_ARCH})
+COMMON_CONFIGURE_ARGS+=	--with-abi=${GCC_CONFIG_ABI.${MACHINE_ARCH}}
 .endif
 .if defined(GCC_CONFIG_TUNE.${MACHINE_ARCH})
 COMMON_CONFIGURE_ARGS+=	--with-tune=${GCC_CONFIG_TUNE.${MACHINE_ARCH}}

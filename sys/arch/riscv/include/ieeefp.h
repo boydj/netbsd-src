@@ -20,6 +20,12 @@
 
 typedef int fp_except;
 
+/* adjust for FP_* and FE_* value differences (none on RISC-V) */
+#define	__FPE(x) (x)
+#define	__FEE(x) (x)
+#define	__FPR(x) (x)
+#define	__FER(x) (x)
+
 /* Bit defines for fp_except */
 
 #define	FP_X_INV	FE_INVALID	/* invalid operation exception */

@@ -1213,6 +1213,17 @@ MKSOFTFLOAT=	yes
 SOFTFLOAT_BITS=	32
 .endif
 
+#
+# riscv32: target RV32IMAC/ILP32 (no D extension), e.g. Espressif ESP32-S31.
+#
+.if ${MACHINE_ARCH} == "riscv32"
+MKSOFTFLOAT?=	yes
+.if ${MKSOFTFLOAT} != "no"
+GCC_CONFIG_ARCH.riscv32?=	rv32imac_zicsr_zifencei
+GCC_CONFIG_ABI.riscv32?=	ilp32
+.endif
+.endif
+
 MKSOFTFLOAT?=	no
 #
 # Prefer libc's softfloat.c
