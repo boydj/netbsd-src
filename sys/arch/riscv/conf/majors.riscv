@@ -29,6 +29,9 @@ device-major	pci		char 66			pci
 device-major	kttcp		char 71			kttcp
 device-major	openfirm	char 77			openfirm
 
+device-major	espuart		char 100		espuart
+device-major	espusj		char 101		espusj
+
 
 # obsolete, probably can be safely removed after 4.0 branch
 #device-major	aucom		char 73			aucom

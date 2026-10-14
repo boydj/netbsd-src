@@ -250,7 +250,9 @@ esp_uart_attach(device_t parent, device_t self, void *aux)
 		return;
 	}
 
-	if (esp_uart_cmajor == -1) {
+	/* The major is static in kernels that list it in majors.riscv. */
+	if (esp_uart_cmajor == -1 &&
+	    cdevsw_lookup_major(&espuart_cdevsw) == NODEVMAJOR) {
 		int bmajor = -1, cmajor = -1;
 
 		error = devsw_attach("espuart", NULL, &bmajor,
