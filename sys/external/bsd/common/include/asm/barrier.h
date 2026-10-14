@@ -87,6 +87,10 @@
 #define	mb()	alpha_mb()
 #define	wmb()	alpha_wmb()
 #define	rmb()	mb()
+#elif defined(__riscv)
+#define	mb()	__asm __volatile ("fence iorw,iorw" ::: "memory")
+#define	wmb()	__asm __volatile ("fence ow,ow" ::: "memory")
+#define	rmb()	__asm __volatile ("fence ir,ir" ::: "memory")
 #else
 #error Missing Linux memory-mapped I/O barriers for this architecture.
 #endif
