@@ -33,11 +33,13 @@ __KERNEL_RCSID(0, "$NetBSD: cpu_fdt.c,v 1.5 2026/01/15 18:09:26 skrll Exp $");
 
 #include <sys/param.h>
 #include <sys/cpu.h>
+#include <sys/systm.h>
 
 #include <dev/fdt/fdtvar.h>
 
 #include <riscv/cpufunc.h>
 #include <riscv/cpuvar.h>
+#include <riscv/locore.h>
 #include <riscv/machdep.h>
 #include <riscv/sbi.h>
 
@@ -63,6 +65,42 @@ riscv_fdt_cpu_okay(const int node)
 		return true;
 	}
 }
+
+#ifdef FPE
+/*
+ * Size the FPU from the boot hart's ISA: "riscv,isa-extensions" (a string
+ * list) if present, else the single-letter extensions of "riscv,isa"
+ * (e.g. "rv32imafc_zicsr_zifencei").  Without either, keep the default.
+ */
+static void
+riscv_fdt_cpu_fpu(int node)
+{
+	bool f = false, d = false;
+	const char *exts;
+	int len;
+
+	if ((exts = fdtbus_get_prop(node, "riscv,isa-extensions", &len))
+	    != NULL) {
+		for (const char *p = exts; p < exts + len; p += strlen(p) + 1) {
+			f |= strcmp(p, "f") == 0;
+			d |= strcmp(p, "d") == 0;
+		}
+	} else if ((exts = fdtbus_get_string(node, "riscv,isa")) != NULL &&
+	    strncmp(exts, "rv", 2) == 0) {
+		const char *p = exts + 2;
+
+		while (*p >= '0' && *p <= '9')
+			p++;
+		for (; *p != '\0' && *p != '_'; p++) {
+			f |= *p == 'f' || *p == 'g';
+			d |= *p == 'd' || *p == 'g';
+		}
+	} else {
+		return;
+	}
+	riscv_fpu_flen = d ? 64 : f ? 32 : 0;
+}
+#endif
 
 void
 riscv_fdt_cpu_bootstrap(void)
@@ -109,6 +147,9 @@ riscv_fdt_cpu_bootstrap(void)
 			}
 			cpu_bphartid = hartid;
 			cpu_hartindex[hartid] = 0;
+#ifdef FPE
+			riscv_fdt_cpu_fpu(child);
+#endif
 			continue;
 		}
 

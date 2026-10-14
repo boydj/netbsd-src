@@ -531,8 +531,18 @@ static bool
 trap_instruction(struct trapframe *tf, register_t epc, register_t status,
     register_t cause, register_t tval, bool usertrap_p, ksiginfo_t *ksi)
 {
+#ifdef FPE
+	if (!usertrap_p && fpu_probe_trap(tf))
+		return true;
+#endif
 	if (usertrap_p) {
-		if (__SHIFTOUT(tf->tf_sr, SR_FS) == SR_FS_OFF) {
+		/*
+		 * An FP instruction with the FPU off: load this lwp's FP state
+		 * and retry.  Without an FPU (or FPE), it is a SIGILL like any
+		 * other illegal instruction rather than a retry loop.
+		 */
+		if (fpu_present_p() &&
+		    __SHIFTOUT(tf->tf_sr, SR_FS) == SR_FS_OFF) {
 			fpu_load();
 			return true;
 		}

@@ -44,6 +44,7 @@ __KERNEL_RCSID(0, "$NetBSD: cpu.c,v 1.12 2026/09/29 18:46:38 skrll Exp $");
 
 #include <riscv/cpu.h>
 #include <riscv/cpuvar.h>
+#include <riscv/locore.h>
 #include <riscv/machdep.h>
 #include <riscv/sbi.h>
 #include <riscv/sysreg.h>
@@ -228,6 +229,10 @@ cpu_attach(device_t dv, cpuid_t hartid)
 	    xname, "fpu reenables");
 
 	cpu_identify(dv, ci);
+#ifdef FPE
+	if (hartid == cpu_bphartid)
+		fpu_attach(dv);
+#endif
 
 #ifdef MULTIPROCESSOR
 	ipi_init(ci);

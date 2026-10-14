@@ -59,11 +59,16 @@
 #define	FCSR_UF		__BIT(1)	// UnderFlow
 #define	FCSR_NX		__BIT(0)	// iNeXact
 
+/*
+ * The F-extension CSRs by number (fcsr 0x003, fflags 0x001, frm 0x002)
+ * rather than through the frcsr/fscsr pseudo-instructions, so that code
+ * built without F in -march (e.g. the kernel) can still use them.
+ */
 static inline uint32_t
 fcsr_read(void)
 {
 	uint32_t __fcsr;
-	asm("frcsr %0" : "=r"(__fcsr) :: "memory");
+	asm("csrr\t%0, 0x003" : "=r"(__fcsr) :: "memory");
 	return __fcsr;
 }
 
@@ -71,7 +76,7 @@ static inline uint32_t
 fcsr_write(uint32_t __new)
 {
 	uint32_t __old;
-	asm volatile("fscsr %0, %1" : "=r"(__old) : "r"(__new) : "memory");
+	asm volatile("csrrw\t%0, 0x003, %1" : "=r"(__old) : "r"(__new) : "memory");
 	return __old;
 }
 
@@ -79,7 +84,7 @@ static inline uint32_t
 fcsr_fflags_read(void)
 {
 	uint32_t __old;
-	asm("frflags %0" : "=r"(__old) :: "memory");
+	asm("csrr\t%0, 0x001" : "=r"(__old) :: "memory");
 	return __old;
 }
 
@@ -87,7 +92,7 @@ static inline uint32_t
 fcsr_fflags_write(uint32_t __new)
 {
 	uint32_t __old;
-	asm volatile("fsflags %0, %1" : "=r"(__old) : "r"(__new) : "memory");
+	asm volatile("csrrw\t%0, 0x001, %1" : "=r"(__old) : "r"(__new) : "memory");
 	return __old;
 }
 
@@ -95,7 +100,7 @@ static inline uint32_t
 fcsr_frm_read(void)
 {
 	uint32_t __old;
-	asm("frrm\t%0" : "=r"(__old) :: "memory");
+	asm("csrr\t%0, 0x002" : "=r"(__old) :: "memory");
 	return __old;
 }
 
@@ -103,7 +108,7 @@ static inline uint32_t
 fcsr_frm_write(uint32_t __new)
 {
 	uint32_t __old;
-	asm volatile("fsrm\t%0, %1" : "=r"(__old) : "r"(__new) : "memory");
+	asm volatile("csrrw\t%0, 0x002, %1" : "=r"(__old) : "r"(__new) : "memory");
 	return __old;
 }
 

@@ -68,7 +68,22 @@ extern int cpu_printfataltraps;
 
 #ifdef FPE
 extern const pcu_ops_t pcu_fpu_ops;
+extern u_int riscv_fpu_flen;		/* 64 (D), 32 (F only) or 0 */
+extern bool riscv_fpu_eager;
+void	fpu_attach(device_t);
+bool	fpu_probe_trap(struct trapframe *);
 #endif
+
+/* Is there an FPU at all (FPE kernel on a hart with F or D)? */
+static inline bool
+fpu_present_p(void)
+{
+#ifdef FPE
+	return riscv_fpu_flen != 0;
+#else
+	return false;
+#endif
+}
 
 static inline vaddr_t
 stack_align(vaddr_t sp)

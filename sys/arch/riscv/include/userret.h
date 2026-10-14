@@ -35,10 +35,19 @@
 #include <sys/lwp.h>
 #include <sys/userret.h>
 
+#ifdef FPE
+extern bool riscv_fpu_eager;
+void	fpu_eager_load(struct lwp *);
+#endif
+
 static inline void
 userret(struct lwp *l)
 {
 	mi_userret(l);
+#ifdef FPE
+	if (__predict_false(riscv_fpu_eager))
+		fpu_eager_load(l);
+#endif
 }
 
 #endif /* _RISCV_USERRET_H_ */
