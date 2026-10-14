@@ -1,14 +1,15 @@
 #	$NetBSD$
 #
 # Root file system for the Espressif ESP32-S31 kernel (sys/arch/riscv/conf/
-# ESP32S31): a crunched userland that fits in a few MB of PSRAM.
+# ESP32S31): a crunched userland, written to SPI flash at offset 0x800000
+# and mounted read-only from there (see espxiproot).  At most 8MB.
 #
 
 .include <bsd.own.mk>
 .include "${NETBSDSRCDIR}/distrib/common/Makefile.distrib"
 
 IMAGE=		esp32s31-root.fs
-IMAGESIZE=	3072k
+IMAGESIZE=	6144k
 MAKEFS_FLAGS+=	-o density=4096 -f 600
 
 WARNS=		1

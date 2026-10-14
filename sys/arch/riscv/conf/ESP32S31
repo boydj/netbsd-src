@@ -49,12 +49,12 @@ file-system 	PROCFS		# /proc
 file-system 	PTYFS		# /dev/pts/N support
 options 	FFS_NO_SNAPSHOT
 
-# Root on the embedded memory disk (filled in by mdsetimage)
+# Root on md0, backed by the file system image in SPI flash (espxiproot)
 pseudo-device	md
 options 	MEMORY_DISK_HOOKS
 options 	MEMORY_DISK_IS_ROOT
 options 	MEMORY_DISK_SERVER=0
-options 	MEMORY_DISK_ROOT_SIZE=6144	# 3MiB, in 512 byte blocks
+options 	MEMORY_DISK_DYNAMIC	# root image is in flash, see espxiproot
 
 
 config		netbsd	root on md0a type ffs
@@ -75,6 +75,7 @@ espintmtx*	at fdt? pass 2		# interrupt matrix
 espsystimer*	at fdt? pass 3		# SYSTIMER: timecounter and clock
 espuart*	at fdt?			# UART
 esptrng*	at fdt?			# true random number generator
+espxiproot*	at fdt?			# root file system in SPI flash
 
 pseudo-device	pty			# pseudo-terminals
 pseudo-device	clockctl		# user control of clock subsystem

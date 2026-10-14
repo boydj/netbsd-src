@@ -2,7 +2,8 @@
 #
 # /etc/rc for the ESP32-S31 root file system.
 #
-# The root is an in-kernel memory disk; keep the writable bits on tmpfs.
+# The root file system is read-only, straight from SPI flash; keep the
+# writable bits on tmpfs.
 #
 
 PATH=/sbin:/bin:/usr/sbin:/usr/bin
@@ -12,9 +13,10 @@ stty status '^T'
 
 echo "Starting NetBSD on the Espressif ESP32-S31"
 
-mount -u -o rw / 2>/dev/null
+mount -u -o ro / 2>/dev/null		# pick up the device name from fstab
 mount -t tmpfs -o -s2M tmpfs /tmp
 mount -t tmpfs -o -s1M tmpfs /var
+mount -t tmpfs -o -s512k tmpfs /root
 mkdir -p /var/run /var/log /var/tmp /var/db
 chmod 1777 /tmp /var/tmp
 mount -t kernfs kernfs /kern

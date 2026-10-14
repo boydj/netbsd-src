@@ -99,6 +99,15 @@
 			reg-names = "trng", "clkrst";
 		};
 
+		/*
+		 * Root file system at flash offset 0x800000, read through the
+		 * XIP window (which maps flash 0x100000 and up at 0x40000000).
+		 */
+		rootfs: flash@40700000 {
+			compatible = "espressif,esp32s31-xip-rootfs";
+			reg = <0x40700000 0x00800000>;
+		};
+
 		systimer: timer@20399000 {
 			compatible = "espressif,esp32s31-systimer";
 			reg = <0x20399000 0x100>;

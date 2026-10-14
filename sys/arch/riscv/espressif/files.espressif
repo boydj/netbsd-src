@@ -28,3 +28,8 @@ file	arch/riscv/espressif/esp_uart.c		esp_uart
 device	esptrng
 attach	esptrng at fdt with esp_trng
 file	arch/riscv/espressif/esp_trng.c		esp_trng
+
+# Root file system in SPI flash (XIP window), served by md(4)
+device	espxiproot
+attach	espxiproot at fdt with esp_xiproot
+file	arch/riscv/espressif/esp_xiproot.c	esp_xiproot
