@@ -74,6 +74,7 @@ espclic*	at fdt? pass 1		# CLIC, S-mode bank
 espintmtx*	at fdt? pass 2		# interrupt matrix
 espsystimer*	at fdt? pass 3		# SYSTIMER: timecounter and clock
 espuart*	at fdt?			# UART
+esptrng*	at fdt?			# true random number generator
 
 pseudo-device	pty			# pseudo-terminals
 pseudo-device	clockctl		# user control of clock subsystem

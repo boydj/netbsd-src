@@ -115,6 +115,9 @@ esp32s31_platform_devmap(void)
 		/* HP peripherals: INTMTX, TEE/APM, LP AON, ... */
 		DEVMAP_ENTRY(VM_KERNEL_IO_BASE + 0x0800000, 0x20400000,
 		    0x400000),
+		/* HP peripherals: TRNG, ... */
+		DEVMAP_ENTRY(VM_KERNEL_IO_BASE + 0x0c00000, 0x20800000,
+		    0x400000),
 		DEVMAP_ENTRY_END
 	};
 

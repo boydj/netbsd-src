@@ -93,6 +93,12 @@
 			status = "okay";
 		};
 
+		trng: rng@20814000 {
+			compatible = "espressif,esp32s31-trng";
+			reg = <0x20814000 0x100>, <0x2071003c 0x4>;
+			reg-names = "trng", "clkrst";
+		};
+
 		systimer: timer@20399000 {
 			compatible = "espressif,esp32s31-systimer";
 			reg = <0x20399000 0x100>;
