@@ -18,6 +18,7 @@
 
 	aliases {
 		serial0 = &uart0;
+		serial1 = &usb_jtag;
 	};
 
 	chosen {
@@ -213,6 +214,19 @@
 			interrupt-parent = <&intmtx>;
 			interrupts = <33 4>;		/* IRQ_TYPE_LEVEL_HIGH */
 			interrupt-names = "target0";
+		};
+
+		/*
+		 * USB-Serial/JTAG: the CDC-ACM port on the board's "USB"
+		 * connector.  Set stdout-path to "serial1" to make it the
+		 * console.
+		 */
+		usb_jtag: serial@20391000 {
+			compatible = "esp,esp32s31-usb-serial-jtag",
+			    "esp,esp32s3-acm";
+			reg = <0x20391000 0x1000>;
+			interrupt-parent = <&intmtx>;
+			interrupts = <2 4>;
 		};
 
 		/* HP_ALIVE_SYS: USB PHY power and line state, among others */

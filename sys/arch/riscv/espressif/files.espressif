@@ -45,6 +45,11 @@ attach	espgpio at fdt with esp_gpio
 file	arch/riscv/espressif/esp_gpio.c		esp_gpio
 
 # Ethernet (DesignWare GMAC 3.70a, dwc_gmac(4))
+# USB-Serial/JTAG (CDC-ACM) console
+device	espusj: tty
+attach	espusj at fdt with esp_usj
+file	arch/riscv/espressif/esp_usj.c		esp_usj
+
 # USB 2.0 OTG-HS PHY
 device	espusbphy: fdt_phy, fdt_clock
 attach	espusbphy at fdt with esp_usbphy

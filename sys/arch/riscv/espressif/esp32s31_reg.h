@@ -137,4 +137,26 @@
 #define	UART_FIFO_SIZE		128
 #define	UART_TX_FIFO_MAX	127
 
+/*
+ * USB-Serial/JTAG controller: a fixed-function CDC-ACM device (plus a
+ * JTAG bridge) on the chip's full-speed USB pins.  Endpoint 1 carries
+ * the serial data through two 64-byte FIFOs.
+ */
+#define	USJ_EP1			0x00	/* RX/TX FIFO byte */
+#define	USJ_EP1_CONF		0x04
+#define	 USJ_EP1_CONF_WR_DONE	__BIT(0)	/* send what's in the FIFO */
+#define	 USJ_EP1_CONF_IN_FREE	__BIT(1)	/* TX FIFO has room */
+#define	 USJ_EP1_CONF_OUT_AVAIL	__BIT(2)	/* RX FIFO has data */
+#define	USJ_INT_RAW		0x08
+#define	USJ_INT_ST		0x0c
+#define	USJ_INT_ENA		0x10
+#define	USJ_INT_CLR		0x14
+#define	 USJ_INT_OUT_RECV_PKT	__BIT(2)	/* host sent a packet */
+#define	 USJ_INT_IN_EMPTY	__BIT(3)	/* host took our packet */
+#define	USJ_IN_EP1_ST		0x2c
+#define	 USJ_IN_EP1_WR_ADDR	__BITS(8, 2)
+#define	USJ_OUT_EP1_ST		0x3c
+#define	 USJ_OUT_EP1_REC_DATA_CNT __BITS(22, 16)
+#define	USJ_FIFO_SIZE		64
+
 #endif /* _RISCV_ESPRESSIF_ESP32S31_REG_H_ */
