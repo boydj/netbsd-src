@@ -45,6 +45,9 @@ COPTS.dhcp.c+=	-Wno-error=sign-conversion
 .endif
 .endif
 
+# gcc 14 at -Os: false positive for vlen in dhcp6_makevendor()
+COPTS.dhcp6.c+=	${CC_WNO_MAYBE_UNINITIALIZED}
+
 .if !defined(SMALLPROG)
 CPPFLAGS+=	-DARP
 SRCS+=		arp.c
