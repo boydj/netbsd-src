@@ -189,6 +189,9 @@ dwcmmc_fdt_attach(device_t parent, device_t self, void *aux)
 	if (of_getprop_bool(phandle, "broken-cd")) {
 		sc->sc_flags |= DWC_MMC_F_BROKEN_CD;
 	}
+	/* The slot (card number) used, where the host has several. */
+	if (of_getprop_uint32(phandle, "espressif,slot", &sc->sc_card) != 0)
+		sc->sc_card = 0;
 	sc->sc_pre_power_on = dwcmmc_fdt_pre_power_on;
 	sc->sc_post_power_on = dwcmmc_fdt_post_power_on;
 	sc->sc_bus_clock = dwcmmc_fdt_bus_clock;

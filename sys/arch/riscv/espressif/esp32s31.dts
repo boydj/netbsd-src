@@ -460,6 +460,24 @@
 				bias-pull-up;
 				drive-strength = <20>;
 			};
+
+			/*
+			 * SD slot 1: fixed pads, GPIO35-38 DAT0-3, GPIO39
+			 * CLK, GPIO40 CMD; strapping pins, and the analog
+			 * comparator's.  To use it: in the mmc node below,
+			 * espressif,slot = <1> and this as pinctrl-0.
+			 */
+			sdmmc1_pins: sdmmc1-pins {
+				pinmux = <0x230008>,	/* GPIO35-38 DAT0-3 */
+					 <0x240008>,
+					 <0x250008>,
+					 <0x260008>,
+					 <0x270008>,	/* GPIO39 CLK */
+					 <0x280008>;	/* GPIO40 CMD */
+				input-enable;
+				bias-pull-up;
+				drive-strength = <40>;
+			};
 		};
 
 		/*

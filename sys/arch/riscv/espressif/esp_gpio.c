@@ -104,6 +104,7 @@ __KERNEL_RCSID(0, "$NetBSD$");
 #define	 IOMUX_FUN_WPD		__BIT(7)
 #define	 IOMUX_FUNC_GPIO	1
 #define	 IOMUX_FUNC_GMAC	2
+#define	 IOMUX_FUNC_SD2		4	/* SD slot 1, GPIO35-40 */
 
 /* GPIO block */
 #define	GPIO_OUT_W1TS(bank)	((bank) ? 0x14 : 0x08)
@@ -143,6 +144,8 @@ __KERNEL_RCSID(0, "$NetBSD$");
 #define	SIG_GMII_MDO_OUT	109
 #define	SIG_SD_CARD_DETECT_N_1	126	/* slot 0 */
 #define	SIG_SD_CARD_WRITE_PRT_1	130
+#define	SIG_SD_CARD_DETECT_N_2	127	/* slot 1 */
+#define	SIG_SD_CARD_WRITE_PRT_2	131
 #define	GPIO_MATRIX_CONST_ZERO	0xc0	/* IN_SEL value: tie the signal low */
 #define	GPIO_MATRIX_CONST_ONE	0x80	/* ... high */
 
@@ -151,6 +154,7 @@ __KERNEL_RCSID(0, "$NetBSD$");
 #define	FUNC_GMII_MDC		5
 #define	FUNC_GMII_MDIO		6
 #define	FUNC_SDIO		7	/* not in Espressif's bindings yet */
+#define	FUNC_SDIO2		8	/* nor this: SD slot 1's pads */
 
 
 struct esp_pin_function {
@@ -167,6 +171,8 @@ static const struct esp_pin_function esp_pin_functions[] = {
 			     SIG_GMII_MDO_OUT, 0 },
 	/* SD slot 0: CLK, CMD and DAT0-3 on their dedicated pads */
 	[FUNC_SDIO] = { IOMUX_FUNC_GPIO, -1, -1, CNNT_SDIO_DED_SEL },
+	/* SD slot 1: CLK, CMD and DAT0-3 are IO_MUX function 4 */
+	[FUNC_SDIO2] = { IOMUX_FUNC_SD2, -1, -1, 0 },
 };
 
 /*
@@ -682,6 +688,15 @@ esp_gpio_set_config(device_t dev, const void *data, size_t len)
 			    (pd ? CNNT_FUN_WPD : 0) |
 			    (drv >= 0 ? __SHIFTIN(drv, CNNT_FUN_DRV) : 0));
 		} else {
+			if (fn == FUNC_SDIO2) {
+				/* No CD or WP pads routed: as slot 0. */
+				WR(sc, sc_gpio,
+				    GPIO_FUNC_IN_SEL(SIG_SD_CARD_DETECT_N_2),
+				    GPIO_MATRIX_CONST_ZERO | GPIO_SIG_IN_SEL);
+				WR(sc, sc_gpio,
+				    GPIO_FUNC_IN_SEL(SIG_SD_CARD_WRITE_PRT_2),
+				    GPIO_MATRIX_CONST_ZERO | GPIO_SIG_IN_SEL);
+			}
 			esp_gpio_rmw(sc, sc->sc_iomux, IOMUX_PAD(pin),
 			    IOMUX_MCU_SEL | IOMUX_FUN_IE | IOMUX_FUN_WPU |
 			    IOMUX_FUN_WPD | (drv >= 0 ? IOMUX_FUN_DRV : 0),

@@ -223,7 +223,7 @@ dwc_mmc_host_reset(sdmmc_chipset_handle_t sch)
 	if (ISSET(sc->sc_flags, DWC_MMC_F_PWREN_INV))
 		MMC_WRITE(sc, DWC_MMC_PWREN, 0);
 	else
-		MMC_WRITE(sc, DWC_MMC_PWREN, 1);
+		MMC_WRITE(sc, DWC_MMC_PWREN, __BIT(sc->sc_card));
 
 	ctrl = MMC_READ(sc, DWC_MMC_GCTRL);
 	ctrl &= ~DWC_MMC_GCTRL_USE_INTERNAL_DMAC;
@@ -295,7 +295,8 @@ dwc_mmc_card_detect(sdmmc_chipset_handle_t sch)
 		return 1;	/* non-removable device is always present */
 	}
 
-	det_n = MMC_READ(sc, DWC_MMC_CDETECT) & DWC_MMC_CDETECT_CARD_DETECT_N;
+	det_n = MMC_READ(sc, DWC_MMC_CDETECT) &
+	    (DWC_MMC_CDETECT_CARD_DETECT_N << sc->sc_card);
 
 	return !det_n;
 }
@@ -345,7 +346,8 @@ dwc_mmc_update_clock(struct dwc_mmc_softc *sc)
 
 	cmd = DWC_MMC_CMD_START |
 	      DWC_MMC_CMD_UPCLK_ONLY |
-	      DWC_MMC_CMD_WAIT_PRE_OVER;
+	      DWC_MMC_CMD_WAIT_PRE_OVER |
+	      __SHIFTIN(sc->sc_card, DWC_MMC_CMD_CARD_NUMBER);
 	if (ISSET(sc->sc_flags, DWC_MMC_F_USE_HOLD_REG))
 		cmd |= DWC_MMC_CMD_USE_HOLD_REG;
 	MMC_WRITE(sc, DWC_MMC_ARG, 0);
@@ -421,7 +423,7 @@ dwc_mmc_bus_clock(sdmmc_chipset_handle_t sch, int freq)
 		if (dwc_mmc_set_clock(sc, freq) != 0)
 			return 1;
 
-		clkena = DWC_MMC_CLKENA_CARDCLKON;
+		clkena = DWC_MMC_CLKENA_CARDCLKON << sc->sc_card;
 		MMC_WRITE(sc, DWC_MMC_CLKENA, clkena);
 		if (dwc_mmc_update_clock(sc) != 0)
 			return 1;
@@ -441,19 +443,23 @@ dwc_mmc_bus_width(sdmmc_chipset_handle_t sch, int width)
 	aprint_normal_dev(sc->sc_dev, "width = %d\n", width);
 #endif
 
+	/* This card's bits only: the others' are theirs. */
+	uint32_t ctype = MMC_READ(sc, DWC_MMC_WIDTH) &
+	    ~((DWC_MMC_WIDTH_4 | DWC_MMC_WIDTH_8) << sc->sc_card);
+
 	switch (width) {
 	case 1:
-		MMC_WRITE(sc, DWC_MMC_WIDTH, DWC_MMC_WIDTH_1);
 		break;
 	case 4:
-		MMC_WRITE(sc, DWC_MMC_WIDTH, DWC_MMC_WIDTH_4);
+		ctype |= DWC_MMC_WIDTH_4 << sc->sc_card;
 		break;
 	case 8:
-		MMC_WRITE(sc, DWC_MMC_WIDTH, DWC_MMC_WIDTH_8);
+		ctype |= DWC_MMC_WIDTH_8 << sc->sc_card;
 		break;
 	default:
 		return 1;
 	}
+	MMC_WRITE(sc, DWC_MMC_WIDTH, ctype);
 
 	sc->sc_mmc_width = width;
 
@@ -592,7 +598,8 @@ static void
 dwc_mmc_exec_command(sdmmc_chipset_handle_t sch, struct sdmmc_command *cmd)
 {
 	struct dwc_mmc_softc *sc = sch;
-	uint32_t cmdval = DWC_MMC_CMD_START;
+	uint32_t cmdval = DWC_MMC_CMD_START |
+	    __SHIFTIN(sc->sc_card, DWC_MMC_CMD_CARD_NUMBER);
 	int retry, error;
 	uint32_t imask;
 	u_int reg;
@@ -866,7 +873,7 @@ dwc_mmc_init(struct dwc_mmc_softc *sc)
 	}
 
 	if (sc->sc_intr_cardmask == 0)
-		sc->sc_intr_cardmask = DWC_MMC_INT_SDIO_INT(0);
+		sc->sc_intr_cardmask = DWC_MMC_INT_SDIO_INT(sc->sc_card);
 
 	mutex_init(&sc->sc_lock, MUTEX_DEFAULT, IPL_NONE);
 	mutex_init(&sc->sc_intr_lock, MUTEX_DEFAULT, IPL_BIO);

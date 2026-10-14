@@ -73,6 +73,7 @@ struct dwc_mmc_softc {
 	void *sc_dmabounce_buf;
 	size_t sc_dmabounce_buflen;
 
+	u_int sc_card;			/* card (slot) number */
 	uint32_t sc_intr_card;
 	uint32_t sc_intr_cardmask;
 	struct sdmmc_command *sc_curcmd;
