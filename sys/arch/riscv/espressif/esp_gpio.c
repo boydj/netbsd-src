@@ -42,6 +42,20 @@
  * other drivers ("gpios" properties) and gpio(4).  Pins listed in
  * "gpio-reserved-ranges" (flash, PSRAM, USB PHY, console) are left alone.
  *
+ * Peripheral signals that go through the GPIO matrix (UART1-3, I2C, SPI,
+ * LEDC and MCPWM outputs, TWAI, I2S) can be put on any free pin by name,
+ * either in the device tree:
+ *
+ *		uart1_pins: uart1-pins {
+ *			espressif,pins = <10 11>;
+ *			espressif,functions = "uart1_txd", "uart1_rxd";
+ *		};
+ *
+ * or at run time, with sysctl:
+ *
+ *	sysctl -w hw.espgpio0.pin10=uart1_txd
+ *	sysctl hw.espgpio0.functions		(the names)
+ *
  *	gpio: pinctrl@20582000 {
  *		compatible = "espressif,esp32s31-gpio";
  *		reg = <0x20582000 0x100>,	(IO_MUX)
@@ -70,12 +84,14 @@ __KERNEL_RCSID(0, "$NetBSD$");
 #include <sys/gpio.h>
 #include <sys/kmem.h>
 #include <sys/mutex.h>
+#include <sys/sysctl.h>
 #include <sys/systm.h>
 
 #include <dev/fdt/fdtvar.h>
 #include <dev/gpio/gpiovar.h>
 
 #define	ESP_GPIO_NPINS		62
+#define	CTL_CREATE_PIN_BASE	1000	/* sysctl node numbers of pinN */
 
 /* IO_MUX pad word, one per pad */
 #define	IOMUX_PAD(pin)		((pin) * 4)
@@ -100,6 +116,9 @@ __KERNEL_RCSID(0, "$NetBSD$");
 #define	GPIO_FUNC_IN_SEL(sig)	(0x2f4 + (sig) * 4)
 #define	 GPIO_SIG_IN_SEL	__BIT(9)	/* through the matrix */
 #define	GPIO_FUNC_OUT_SEL(pin)	(0xaf4 + (pin) * 4)
+#define	 GPIO_OUT_SEL		__BITS(8, 0)
+#define	 GPIO_OUT_INV_SEL	__BIT(9)
+#define	 GPIO_OE_SEL		__BIT(10)	/* OE from GPIO_ENABLE */
 #define	 SIG_GPIO_OUT		256		/* drive from GPIO_OUT */
 
 /* CNNT IO_MUX: dedicated pads GPIO13-25 */
@@ -123,6 +142,7 @@ __KERNEL_RCSID(0, "$NetBSD$");
 #define	SIG_SD_CARD_DETECT_N_1	126	/* slot 0 */
 #define	SIG_SD_CARD_WRITE_PRT_1	130
 #define	GPIO_MATRIX_CONST_ZERO	0xc0	/* IN_SEL value: tie the signal low */
+#define	GPIO_MATRIX_CONST_ONE	0x80	/* ... high */
 
 /* Function ids of the "pinmux" cells (Espressif dt-bindings) */
 #define	FUNC_GMAC		4
@@ -145,6 +165,97 @@ static const struct esp_pin_function esp_pin_functions[] = {
 			     SIG_GMII_MDO_OUT, 0 },
 	/* SD slot 0: CLK, CMD and DAT0-3 on their dedicated pads */
 	[FUNC_SDIO] = { IOMUX_FUNC_GPIO, -1, -1, CNNT_SDIO_DED_SEL },
+};
+
+/*
+ * Peripheral signals routed through the GPIO matrix, by name (signal
+ * numbers from ESP-IDF's gpio_sig_map.h).  Outputs drive the pad all the
+ * time (output enable from GPIO_ENABLE), open drain where marked.
+ */
+#define	MF_OD		0x01	/* open drain */
+#define	MF_PU		0x02	/* pull-up */
+#define	MF_IDLE0	0x04	/* input reads 0 when not routed */
+
+struct esp_matrix_func {
+	const char	*mf_name;
+	int16_t		mf_in;		/* input signal, or -1 */
+	int16_t		mf_out;		/* output signal, or -1 */
+	uint8_t		mf_flags;
+};
+
+static const struct esp_matrix_func esp_matrix_funcs[] = {
+	{ "gpio",	-1, SIG_GPIO_OUT, 0 },
+	{ "uart1_txd",	-1,  13, 0 },
+	{ "uart1_rxd",	13,  -1, MF_PU },
+	{ "uart1_rts",	-1,  14, 0 },
+	{ "uart1_cts",	14,  -1, MF_IDLE0 },
+	{ "uart2_txd",	-1,  16, 0 },
+	{ "uart2_rxd",	16,  -1, MF_PU },
+	{ "uart2_rts",	-1,  17, 0 },
+	{ "uart2_cts",	17,  -1, MF_IDLE0 },
+	{ "uart3_txd",	-1, 137, 0 },
+	{ "uart3_rxd",	137, -1, MF_PU },
+	{ "uart3_rts",	-1, 138, 0 },
+	{ "uart3_cts",	138, -1, MF_IDLE0 },
+	{ "i2c0_scl",	68,  68, MF_OD | MF_PU },
+	{ "i2c0_sda",	69,  69, MF_OD | MF_PU },
+	{ "i2c1_scl",	70,  70, MF_OD | MF_PU },
+	{ "i2c1_sda",	71,  71, MF_OD | MF_PU },
+	{ "spi2_sck",	-1,  53, 0 },
+	{ "spi2_mosi",	-1,  55, 0 },
+	{ "spi2_miso",	54,  -1, 0 },
+	{ "spi2_cs0",	-1,  62, 0 },
+	{ "spi2_cs1",	-1,  63, 0 },
+	{ "spi2_cs2",	-1,  64, 0 },
+	{ "spi2_cs3",	-1,  65, 0 },
+	{ "spi3_sck",	-1,  47, 0 },
+	{ "spi3_mosi",	-1,  49, 0 },
+	{ "spi3_miso",	48,  -1, 0 },
+	{ "spi3_cs0",	-1,  52, 0 },
+	{ "spi3_cs1",	-1,  46, 0 },
+	{ "spi3_cs2",	-1,  45, 0 },
+	{ "ledc0_0",	-1, 126, 0 },
+	{ "ledc0_1",	-1, 127, 0 },
+	{ "ledc0_2",	-1, 128, 0 },
+	{ "ledc0_3",	-1, 129, 0 },
+	{ "ledc0_4",	-1, 130, 0 },
+	{ "ledc0_5",	-1, 131, 0 },
+	{ "ledc0_6",	-1, 132, 0 },
+	{ "ledc0_7",	-1, 133, 0 },
+	{ "ledc1_0",	-1, 230, 0 },
+	{ "ledc1_1",	-1, 231, 0 },
+	{ "ledc1_2",	-1, 232, 0 },
+	{ "ledc1_3",	-1, 233, 0 },
+	{ "ledc1_4",	-1, 234, 0 },
+	{ "ledc1_5",	-1, 235, 0 },
+	{ "ledc1_6",	-1, 236, 0 },
+	{ "ledc1_7",	-1, 237, 0 },
+	{ "pwm0_0a",	-1,  89, 0 },
+	{ "pwm0_0b",	-1,  90, 0 },
+	{ "pwm0_1a",	-1,  91, 0 },
+	{ "pwm0_1b",	-1,  92, 0 },
+	{ "pwm0_2a",	-1,  93, 0 },
+	{ "pwm0_2b",	-1,  94, 0 },
+	{ "pwm1_0a",	-1,  95, 0 },
+	{ "pwm1_0b",	-1,  96, 0 },
+	{ "pwm1_1a",	-1,  97, 0 },
+	{ "pwm1_1b",	-1,  98, 0 },
+	{ "pwm1_2a",	-1,  99, 0 },
+	{ "pwm1_2b",	-1, 100, 0 },
+	{ "twai0_tx",	-1,  80, 0 },
+	{ "twai0_rx",	80,  -1, MF_PU },
+	{ "twai1_tx",	-1,  83, 0 },
+	{ "twai1_rx",	81,  -1, MF_PU },
+	{ "i2s0_mclk",	-1,  26, 0 },
+	{ "i2s0_bck",	-1,  25, 0 },
+	{ "i2s0_ws",	-1,  27, 0 },
+	{ "i2s0_dout",	-1,  28, 0 },
+	{ "i2s0_din",	28,  -1, 0 },
+	{ "i2s1_mclk",	-1,  32, 0 },
+	{ "i2s1_bck",	-1,  31, 0 },
+	{ "i2s1_ws",	-1,  33, 0 },
+	{ "i2s1_dout",	-1,  34, 0 },
+	{ "i2s1_din",	34,  -1, 0 },
 };
 
 /* Is the pin one of the dedicated pads of this path? */
@@ -172,6 +283,10 @@ struct esp_gpio_softc {
 
 	struct gpio_chipset_tag	sc_gc;
 	gpio_pin_t		sc_pins[ESP_GPIO_NPINS];
+
+	struct sysctllog	*sc_sysctllog;
+	char			*sc_funclist;
+	size_t			sc_funclistlen;
 };
 
 struct esp_gpio_pin {
@@ -242,6 +357,164 @@ esp_gpio_write_pin(struct esp_gpio_softc *sc, u_int pin, int val)
 }
 
 /*
+ * Matrix functions
+ */
+
+static const struct esp_matrix_func *
+esp_gpio_func_lookup(const char *name)
+{
+	for (u_int i = 0; i < __arraycount(esp_matrix_funcs); i++)
+		if (strcmp(esp_matrix_funcs[i].mf_name, name) == 0)
+			return &esp_matrix_funcs[i];
+	return NULL;
+}
+
+/* Put a pin to a function; "gpio" makes it a plain input again. */
+static void
+esp_gpio_route(struct esp_gpio_softc *sc, u_int pin,
+    const struct esp_matrix_func *mf)
+{
+	const u_int bank = pin / 32, bit = 1U << (pin % 32);
+
+	KASSERT(mutex_owned(&sc->sc_lock));
+	KASSERT(esp_gpio_usable(sc, pin));
+
+	/* Let go of the input signals the pin feeds now. */
+	for (u_int i = 0; i < __arraycount(esp_matrix_funcs); i++) {
+		const struct esp_matrix_func * const f = &esp_matrix_funcs[i];
+
+		if (f->mf_in < 0 || f == mf)
+			continue;
+		if (RD(sc, sc_gpio, GPIO_FUNC_IN_SEL(f->mf_in)) ==
+		    (pin | GPIO_SIG_IN_SEL))
+			WR(sc, sc_gpio, GPIO_FUNC_IN_SEL(f->mf_in),
+			    ((f->mf_flags & MF_IDLE0) ? GPIO_MATRIX_CONST_ZERO :
+			    GPIO_MATRIX_CONST_ONE) | GPIO_SIG_IN_SEL);
+	}
+
+	if (mf->mf_out == SIG_GPIO_OUT) {
+		esp_gpio_set_mode(sc, pin, GPIO_PIN_INPUT);
+		return;
+	}
+
+	esp_gpio_rmw(sc, sc->sc_iomux, IOMUX_PAD(pin),
+	    IOMUX_MCU_SEL | IOMUX_FUN_IE | IOMUX_FUN_WPU | IOMUX_FUN_WPD,
+	    __SHIFTIN(IOMUX_FUNC_GPIO, IOMUX_MCU_SEL) |
+	    (mf->mf_in >= 0 ? IOMUX_FUN_IE : 0) |
+	    ((mf->mf_flags & MF_PU) ? IOMUX_FUN_WPU : 0));
+	esp_gpio_rmw(sc, sc->sc_gpio, GPIO_PIN(pin), GPIO_PIN_PAD_DRIVER,
+	    (mf->mf_flags & MF_OD) ? GPIO_PIN_PAD_DRIVER : 0);
+	if (mf->mf_out >= 0) {
+		WR(sc, sc_gpio, GPIO_FUNC_OUT_SEL(pin),
+		    __SHIFTIN(mf->mf_out, GPIO_OUT_SEL) | GPIO_OE_SEL);
+		WR(sc, sc_gpio, GPIO_ENABLE_W1TS(bank), bit);
+	} else {
+		WR(sc, sc_gpio, GPIO_FUNC_OUT_SEL(pin), SIG_GPIO_OUT);
+		WR(sc, sc_gpio, GPIO_ENABLE_W1TC(bank), bit);
+	}
+	if (mf->mf_in >= 0)
+		WR(sc, sc_gpio, GPIO_FUNC_IN_SEL(mf->mf_in),
+		    pin | GPIO_SIG_IN_SEL);
+}
+
+/* What the pin does now. */
+static const char *
+esp_gpio_func_name(struct esp_gpio_softc *sc, u_int pin)
+{
+	const u_int out = __SHIFTOUT(RD(sc, sc_gpio, GPIO_FUNC_OUT_SEL(pin)),
+	    GPIO_OUT_SEL);
+	const u_int fn = __SHIFTOUT(RD(sc, sc_iomux, IOMUX_PAD(pin)),
+	    IOMUX_MCU_SEL);
+
+	if (!esp_gpio_usable(sc, pin))
+		return "reserved";
+	if (fn != IOMUX_FUNC_GPIO)
+		return "iomux";
+	for (u_int i = 0; i < __arraycount(esp_matrix_funcs); i++) {
+		const struct esp_matrix_func * const f = &esp_matrix_funcs[i];
+
+		if (out != SIG_GPIO_OUT && f->mf_out == (int)out)
+			return f->mf_name;
+		if (out == SIG_GPIO_OUT && f->mf_out < 0 &&
+		    RD(sc, sc_gpio, GPIO_FUNC_IN_SEL(f->mf_in)) ==
+		    (pin | GPIO_SIG_IN_SEL))
+			return f->mf_name;
+	}
+	return "gpio";
+}
+
+static int
+esp_gpio_sysctl_pin(SYSCTLFN_ARGS)
+{
+	struct sysctlnode node = *rnode;
+	struct esp_gpio_softc * const sc = node.sysctl_data;
+	const u_int pin = node.sysctl_num - CTL_CREATE_PIN_BASE;
+	const struct esp_matrix_func *mf;
+	char buf[16];
+	int error;
+
+	mutex_enter(&sc->sc_lock);
+	strlcpy(buf, esp_gpio_func_name(sc, pin), sizeof(buf));
+	mutex_exit(&sc->sc_lock);
+
+	node.sysctl_data = buf;
+	node.sysctl_size = sizeof(buf);
+	error = sysctl_lookup(SYSCTLFN_CALL(&node));
+	if (error || newp == NULL)
+		return error;
+
+	if (!esp_gpio_usable(sc, pin))
+		return EPERM;
+	if ((mf = esp_gpio_func_lookup(buf)) == NULL)
+		return EINVAL;
+	mutex_enter(&sc->sc_lock);
+	esp_gpio_route(sc, pin, mf);
+	mutex_exit(&sc->sc_lock);
+	return 0;
+}
+
+static void
+esp_gpio_sysctl_init(struct esp_gpio_softc *sc)
+{
+	const struct sysctlnode *node;
+	char *p;
+	size_t len = 1;
+
+	for (u_int i = 0; i < __arraycount(esp_matrix_funcs); i++)
+		len += strlen(esp_matrix_funcs[i].mf_name) + 1;
+	sc->sc_funclistlen = len;
+	sc->sc_funclist = p = kmem_zalloc(len, KM_SLEEP);
+	for (u_int i = 0; i < __arraycount(esp_matrix_funcs); i++) {
+		const size_t n = strlen(esp_matrix_funcs[i].mf_name);
+
+		memcpy(p, esp_matrix_funcs[i].mf_name, n);
+		p[n] = (i + 1 < __arraycount(esp_matrix_funcs)) ? ' ' : '\0';
+		p += n + 1;
+	}
+
+	if (sysctl_createv(&sc->sc_sysctllog, 0, NULL, &node, 0,
+	    CTLTYPE_NODE, device_xname(sc->sc_dev),
+	    SYSCTL_DESCR("pin functions"), NULL, 0, NULL, 0,
+	    CTL_HW, CTL_CREATE, CTL_EOL) != 0)
+		return;
+	sysctl_createv(&sc->sc_sysctllog, 0, &node, NULL, CTLFLAG_READONLY,
+	    CTLTYPE_STRING, "functions",
+	    SYSCTL_DESCR("functions a pin can be given"), NULL, 0,
+	    sc->sc_funclist, 0, CTL_CREATE, CTL_EOL);
+	for (u_int pin = 0; pin < ESP_GPIO_NPINS; pin++) {
+		char name[8];
+
+		if (!esp_gpio_usable(sc, pin))
+			continue;
+		snprintf(name, sizeof(name), "pin%u", pin);
+		sysctl_createv(&sc->sc_sysctllog, 0, &node, NULL,
+		    CTLFLAG_READWRITE, CTLTYPE_STRING, name,
+		    SYSCTL_DESCR("pin function"), esp_gpio_sysctl_pin, 0,
+		    (void *)sc, 16, CTL_CREATE_PIN_BASE + pin, CTL_EOL);
+	}
+}
+
+/*
  * Pin configuration ("pinctrl-0 = <&emac_pins>").
  */
 
@@ -255,6 +528,35 @@ esp_gpio_drive_field(int phandle)
 	return mA <= 5 ? 0 : mA <= 10 ? 1 : mA <= 20 ? 2 : 3;
 }
 
+/* espressif,pins = <pin ...>; espressif,functions = "name", ... */
+static int
+esp_gpio_set_config_matrix(struct esp_gpio_softc *sc, int phandle)
+{
+	const uint32_t *pins;
+	const char *fn;
+	int plen, i;
+
+	pins = fdtbus_get_prop(phandle, "espressif,pins", &plen);
+	for (i = 0; pins != NULL && plen >= 4; i++, plen -= 4, pins++) {
+		const u_int pin = be32toh(*pins);
+		const struct esp_matrix_func *mf;
+
+		fn = fdtbus_get_string_index(phandle,
+		    "espressif,functions", i);
+		mf = fn != NULL ? esp_gpio_func_lookup(fn) : NULL;
+		if (mf == NULL || !esp_gpio_usable(sc, pin)) {
+			aprint_error_dev(sc->sc_dev, "%s: bad pin %u (%s)\n",
+			    fdtbus_get_string(phandle, "name"), pin,
+			    fn != NULL ? fn : "?");
+			continue;
+		}
+		mutex_enter(&sc->sc_lock);
+		esp_gpio_route(sc, pin, mf);
+		mutex_exit(&sc->sc_lock);
+	}
+	return 0;
+}
+
 static int
 esp_gpio_set_config(device_t dev, const void *data, size_t len)
 {
@@ -262,6 +564,9 @@ esp_gpio_set_config(device_t dev, const void *data, size_t len)
 	const int phandle = fdtbus_get_phandle_from_native(be32dec(data));
 	const uint32_t *pinmux;
 	int plen;
+
+	if (of_hasprop(phandle, "espressif,pins"))
+		return esp_gpio_set_config_matrix(sc, phandle);
 
 	pinmux = fdtbus_get_prop(phandle, "pinmux", &plen);
 	if (pinmux == NULL)
@@ -512,11 +817,13 @@ esp_gpio_attach(device_t parent, device_t self, void *aux)
 
 	fdtbus_register_gpio_controller(self, phandle, &esp_gpio_fdt_funcs);
 	for (int child = OF_child(phandle); child; child = OF_peer(child)) {
-		if (of_hasprop(child, "pinmux"))
+		if (of_hasprop(child, "pinmux") ||
+		    of_hasprop(child, "espressif,pins"))
 			fdtbus_register_pinctrl_config(self, child,
 			    &esp_gpio_pinctrl_funcs);
 	}
 
+	esp_gpio_sysctl_init(sc);
 	esp_gpio_attach_ports(sc);
 }
 

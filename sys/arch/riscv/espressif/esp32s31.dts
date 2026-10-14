@@ -94,11 +94,111 @@
 		uart0: serial@2038a000 {
 			compatible = "esp,esp32s3-uart";
 			reg = <0x2038a000 0x100>;
-			clocks = <&xtal_clk>;
+			clocks = <&clkrst 13>;
 			current-speed = <115200>;
 			interrupt-parent = <&intmtx>;
 			interrupts = <9 4>;		/* IRQ_TYPE_LEVEL_HIGH */
 			status = "okay";
+		};
+
+		/*
+		 * UART1-3 have no pins of their own: put them on free GPIOs
+		 * with pinctrl ("espressif,pins"/"espressif,functions", see
+		 * the gpio node) or at run time, e.g.
+		 *	sysctl -w hw.espgpio0.pin10=uart1_txd
+		 *	sysctl -w hw.espgpio0.pin11=uart1_rxd
+		 */
+		uart1: serial@2038b000 {
+			compatible = "espressif,esp32s31-uart";
+			reg = <0x2038b000 0x100>;
+			clocks = <&clkrst 14>;
+			resets = <&clkrst 6>;
+			interrupt-parent = <&intmtx>;
+			interrupts = <10 4>;
+		};
+
+		uart2: serial@2038c000 {
+			compatible = "espressif,esp32s31-uart";
+			reg = <0x2038c000 0x100>;
+			clocks = <&clkrst 15>;
+			resets = <&clkrst 7>;
+			interrupt-parent = <&intmtx>;
+			interrupts = <11 4>;
+		};
+
+		/* Main system watchdog of timer group 1 */
+		watchdog@20581000 {
+			compatible = "espressif,esp32s31-mwdt";
+			reg = <0x20581000 0x100>;
+			clocks = <&clkrst 31>;
+		};
+
+		/*
+		 * The LP domain's RTC timer, for the time of day across
+		 * resets (kept in LP_SYS STORE10-15), and what it takes to
+		 * calibrate its slow clock (timer group 0).
+		 */
+		rtc@20800000 {
+			compatible = "espressif,esp32s31-rtc-timer";
+			reg = <0x20800000 0x100>, <0x20700054 0x18>,
+			      <0x20701000 0x4>, <0x20580000 0x100>,
+			      <0x20587114 0x8>;
+		};
+
+		/*
+		 * I2C0/1 and GPSPI2/3, pins through the GPIO matrix too
+		 * (i2cN_scl, i2cN_sda; spiN_sck, spiN_mosi, spiN_miso,
+		 * spiN_cs0..).  I2C devices for kernel drivers go in here as
+		 * child nodes, with a pinctrl-0 so that the pins are set up
+		 * before they're probed.
+		 */
+		i2c0: i2c@20385000 {
+			compatible = "espressif,esp32s31-i2c";
+			reg = <0x20385000 0x200>;
+			clocks = <&clkrst 17>;
+			resets = <&clkrst 9>;
+			clock-frequency = <100000>;
+			#address-cells = <1>;
+			#size-cells = <0>;
+		};
+
+		i2c1: i2c@20386000 {
+			compatible = "espressif,esp32s31-i2c";
+			reg = <0x20386000 0x200>;
+			clocks = <&clkrst 18>;
+			resets = <&clkrst 10>;
+			clock-frequency = <100000>;
+			#address-cells = <1>;
+			#size-cells = <0>;
+		};
+
+		spi2: spi@2038f000 {
+			compatible = "espressif,esp32s31-spi";
+			reg = <0x2038f000 0x1000>;
+			clocks = <&clkrst 19>;
+			resets = <&clkrst 11>;
+			num-cs = <4>;
+			#address-cells = <1>;
+			#size-cells = <0>;
+		};
+
+		spi3: spi@20390000 {
+			compatible = "espressif,esp32s31-spi";
+			reg = <0x20390000 0x1000>;
+			clocks = <&clkrst 20>;
+			resets = <&clkrst 12>;
+			num-cs = <3>;
+			#address-cells = <1>;
+			#size-cells = <0>;
+		};
+
+		uart3: serial@2038d000 {
+			compatible = "espressif,esp32s31-uart";
+			reg = <0x2038d000 0x100>;
+			clocks = <&clkrst 16>;
+			resets = <&clkrst 8>;
+			interrupt-parent = <&intmtx>;
+			interrupts = <12 4>;
 		};
 
 		trng: rng@20814000 {
@@ -151,7 +251,10 @@
 		 */
 		clkrst: clock-controller@20587000 {
 			compatible = "espressif,esp32s31-clkrst";
-			reg = <0x20587000 0x400>, <0x20359000 0x100>;
+			reg = <0x20587000 0x400>,	/* HP_SYS_CLKRST */
+			      <0x20359000 0x100>,	/* CNNT_SYS */
+			      <0x20586000 0x400>,	/* HP_SYSTEM */
+			      <0x20710000 0x100>;	/* LP_PERI_CLKRST */
 			clocks = <&xtal_clk>, <&mpll_clk>;
 			clock-names = "xtal", "mpll";
 			#clock-cells = <1>;

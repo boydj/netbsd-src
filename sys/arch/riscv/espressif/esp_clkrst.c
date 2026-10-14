@@ -34,12 +34,23 @@
  * those of Espressif's device tree bindings (dt-bindings/clock/esp32s31.h,
  * dt-bindings/reset/esp32s31.h), so device trees can use the same cells.
  * Espressif's bindings have no SD/MMC host yet; its clocks and reset use
- * the next free ids (clocks 11 and 12, reset 5).
+ * the next free ids (clocks 11 and 12, reset 5), and so do the rest of the
+ * peripherals here (clocks 13 and up, resets 6 and up; see esp32s31.dts).
+ *
+ * Enabling a clock also selects its parent (XTAL, for everything that can
+ * have it: the PLL-derived 80 and 160 MHz references get gated off by
+ * ESP-IDF, the RC oscillator is imprecise) and, for blocks with their own
+ * RAM (UART FIFOs, CAN buffers, LEDC gamma RAM), powers that RAM up in
+ * HP_SYSTEM.  Clocks with a selectable parent report the rate of the one
+ * selected, so a console UART left on another source by the boot firmware
+ * keeps its baud rate.
  *
  *	clkrst: clock-controller@20587000 {
  *		compatible = "espressif,esp32s31-clkrst";
  *		reg = <0x20587000 0x400>,	(HP_SYS_CLKRST)
- *		      <0x20359000 0x100>;	(CNNT_SYS)
+ *		      <0x20359000 0x100>,	(CNNT_SYS)
+ *		      <0x20586000 0x400>,	(HP_SYSTEM: memory power)
+ *		      <0x20710000 0x100>;	(LP_PERI_CLKRST)
  *		clocks = <&xtal_clk>, <&mpll_clk>;
  *		clock-names = "xtal", "mpll";
  *		#clock-cells = <1>;
@@ -68,16 +79,140 @@ __KERNEL_RCSID(0, "$NetBSD$");
 #define	CLK_EMAC_PTP		10
 #define	CLK_SDMMC_SYS		11	/* SD/MMC host bus clock ("biu") */
 #define	CLK_SDIO_LS		12	/* SD/MMC card clock source ("ciu") */
-#define	CLK_NUM			13
+#define	CLK_UART0		13
+#define	CLK_UART1		14
+#define	CLK_UART2		15
+#define	CLK_UART3		16
+#define	CLK_I2C0		17
+#define	CLK_I2C1		18
+#define	CLK_GPSPI2		19
+#define	CLK_GPSPI3		20
+#define	CLK_LEDC0		21
+#define	CLK_LEDC1		22
+#define	CLK_TWAI0		23
+#define	CLK_TWAI1		24
+#define	CLK_CRYPTO		25	/* crypto bus + security clocks */
+#define	CLK_AES			26
+#define	CLK_SHA			27
+#define	CLK_RSA			28
+#define	CLK_ECC			29
+#define	CLK_TIMG0		30
+#define	CLK_TIMG1		31
+#define	CLK_TSENS		32
+#define	CLK_ADC			33
+#define	CLK_LP_I2C		34
+#define	CLK_MCPWM0		35
+#define	CLK_MCPWM1		36
+#define	CLK_MCPWM2		37
+#define	CLK_MCPWM3		38
+#define	CLK_DS			39
+#define	CLK_HMAC		40
+#define	CLK_ECDSA		41
+#define	CLK_NUM			42
 
 /* Reset ids */
 #define	RST_IOMUX		0
 #define	RST_EMAC		3
 #define	RST_USB_OTGHS		4
 #define	RST_SDMMC		5
-#define	RST_NUM			6
+#define	RST_UART1		6
+#define	RST_UART2		7
+#define	RST_UART3		8
+#define	RST_I2C0		9
+#define	RST_I2C1		10
+#define	RST_GPSPI2		11
+#define	RST_GPSPI3		12
+#define	RST_LEDC0		13
+#define	RST_LEDC1		14
+#define	RST_TWAI0		15
+#define	RST_TWAI1		16
+#define	RST_CRYPTO		17
+#define	RST_AES			18
+#define	RST_SHA			19
+#define	RST_RSA			20
+#define	RST_ECC			21
+#define	RST_TIMG1		22
+#define	RST_TSENS		23
+#define	RST_ADC			24
+#define	RST_LP_I2C		25
+#define	RST_MCPWM0		26
+#define	RST_MCPWM1		27
+#define	RST_MCPWM2		28
+#define	RST_MCPWM3		29
+#define	RST_SEC			30
+#define	RST_DS			31
+#define	RST_HMAC		32
+#define	RST_ECDSA		33
+#define	RST_NUM			34
 
 /* HP_SYS_CLKRST */
+#define	HP_CRYPTO_CTRL0		0x058
+#define	 CRYPTO_SYS_CLK_EN	__BIT(0)
+#define	 CRYPTO_RST_EN		__BIT(1)
+#define	 CRYPTO_SEC_CLK_EN	__BIT(2)
+#define	 CRYPTO_SEC_RST_EN	__BIT(3)
+#define	 CRYPTO_AES_CLK_EN	__BIT(4)
+#define	 CRYPTO_AES_RST_EN	__BIT(5)
+#define	 CRYPTO_SHA_CLK_EN	__BIT(6)
+#define	 CRYPTO_SHA_RST_EN	__BIT(7)
+#define	 CRYPTO_RSA_CLK_EN	__BIT(8)
+#define	 CRYPTO_RSA_RST_EN	__BIT(9)
+#define	 CRYPTO_DS_CLK_EN	__BIT(10)
+#define	 CRYPTO_DS_RST_EN	__BIT(11)
+#define	 CRYPTO_ECC_CLK_EN	__BIT(12)
+#define	 CRYPTO_ECC_RST_EN	__BIT(13)
+#define	 CRYPTO_HMAC_CLK_EN	__BIT(14)
+#define	 CRYPTO_HMAC_RST_EN	__BIT(15)
+#define	 CRYPTO_ECDSA_CLK_EN	__BIT(16)
+#define	 CRYPTO_ECDSA_RST_EN	__BIT(17)
+#define	 CRYPTO_CLK_SRC_SEL	__BITS(21, 20)	/* XTAL, RC_FAST, PLL_F240M */
+#define	HP_GPSPI2_CTRL0		0x06c
+#define	HP_GPSPI3_CTRL0		0x070
+#define	 GPSPI_SYS_CLK_EN	__BIT(0)
+#define	 GPSPI_APB_CLK_EN	__BIT(1)
+#define	 GPSPI_RST_EN		__BIT(2)
+#define	 GPSPI_CLK_SRC_SEL	__BITS(5, 4)	/* XTAL, RC_FAST, BBPLL */
+#define	 GPSPI_HS_CLK_EN	__BIT(6)
+#define	 GPSPI_HS_CLK_DIV_NUM	__BITS(14, 7)
+#define	 GPSPI_MST_CLK_EN	__BIT(23)
+#define	HP_UART_CTRL0(n)	(0x088 + 4 * (n))
+#define	 UART_SYS_CLK_EN	__BIT(0)
+#define	 UART_APB_CLK_EN	__BIT(1)
+#define	 UART_APB_RST_EN	__BIT(3)
+#define	 UART_CLK_SRC_SEL	__BITS(6, 5)	/* XTAL, RC_FAST, REF_F80M */
+#define	 UART_CLK_EN		__BIT(7)
+#define	 UART_SCLK_DIV_NUM	__BITS(15, 8)
+#define	HP_I2C_CTRL0(n)		(0x0dc + 4 * (n))
+#define	 I2C_APB_CLK_EN		__BIT(0)
+#define	 I2C_RST_EN		__BIT(1)
+#define	 I2C_CLK_SRC_SEL	__BIT(3)	/* XTAL, RC_FAST */
+#define	 I2C_CLK_EN		__BIT(4)
+#define	 I2C_CLK_DIV_NUM	__BITS(12, 5)
+#define	HP_TWAI_CTRL0(n)	(0x10c + 4 * (n))
+#define	 TWAI_APB_CLK_EN	__BIT(0)
+#define	 TWAI_CLK_SRC_SEL	__BITS(2, 1)	/* XTAL, -, REF_F80M */
+#define	 TWAI_CLK_EN		__BIT(3)
+#define	 TWAI_RST_EN		__BIT(4)
+#define	HP_TIMERGRP1_CTRL0	0x11c
+#define	HP_TIMERGRP0_CTRL0	0x114
+#define	 TIMERGRP_APB_CLK_EN	__BIT(0)
+#define	 TIMERGRP_RST_EN	__BIT(1)
+#define	 TIMERGRP_WDT_CLK_EN	__BIT(11)
+#define	HP_MCPWM_CTRL0(n)	(0x124 + 4 * (n))
+#define	 MCPWM_APB_CLK_EN	__BIT(0)
+#define	 MCPWM_RST_EN		__BIT(1)
+#define	 MCPWM_CLK_SRC_SEL	__BITS(4, 3)	/* XTAL, RC_FAST, PLL_F160M */
+#define	 MCPWM_CLK_EN		__BIT(5)
+#define	 MCPWM_CLK_DIV_NUM	__BITS(13, 6)
+#define	HP_LEDC_CTRL0		0x148
+#define	 LEDC0_APB_CLK_EN	__BIT(0)
+#define	 LEDC0_RST_EN		__BIT(1)
+#define	 LEDC0_CLK_SRC_SEL	__BITS(4, 3)	/* XTAL, RC_FAST, REF_F80M */
+#define	 LEDC0_CLK_EN		__BIT(5)
+#define	 LEDC1_APB_CLK_EN	__BIT(6)
+#define	 LEDC1_RST_EN		__BIT(7)
+#define	 LEDC1_CLK_SRC_SEL	__BITS(10, 9)
+#define	 LEDC1_CLK_EN		__BIT(11)
 #define	HP_USB_OTGHS_CTRL0	0x0ac
 #define	 USB_OTGHS_APB_CLK_EN	__BIT(0)
 #define	 USB_OTGHS_SYS_CLK_EN	__BIT(1)
@@ -104,6 +239,24 @@ __KERNEL_RCSID(0, "$NetBSD$");
 #define	 IOMUX_RST_EN		__BIT(1)
 #define	 IOMUX_CLK_EN		__BIT(4)
 
+/* HP_SYSTEM: peripheral memory power (lp_mode [1:0], lp_en [2], force [3]) */
+#define	HPSYS_UART_MEM(n)	((n) == 3 ? 0x1f0 : 0x28c + 4 * (n))
+#define	HPSYS_CAN0_MEM		0x228
+#define	HPSYS_CAN1_MEM		0x2a4
+#define	HPSYS_LEDC0_MEM		0x208
+#define	HPSYS_LEDC1_MEM		0x298
+#define	 HPSYS_MEM_ON		0x2	/* lp_mode 2, no power-down */
+
+/* LP_PERI_CLKRST */
+#define	LPPERI_I2C_CTRL		0x014
+#define	LPPERI_ADC_CTRL		0x020
+#define	LPPERI_TSENS_CTRL	0x030
+#define	 LPPERI_DIV_NUM		__BITS(7, 0)	/* ADC */
+#define	 LPPERI_I2C_DIV_NUM	__BITS(27, 20)
+#define	 LPPERI_CLK_SEL		__BITS(29, 28)
+#define	 LPPERI_CLK_EN		__BIT(30)
+#define	 LPPERI_RST_EN		__BIT(31)
+
 /* CNNT_SYS */
 #define	CNNT_USB_OTG20_CTRL	0x030
 #define	 USB_OTG20_PHYREF_CLK_EN __BIT(27)
@@ -119,17 +272,40 @@ __KERNEL_RCSID(0, "$NetBSD$");
 #define	CNNT_HP_EMAC_PTP_CTRL	0x054
 #define	 EMAC_PTP_REF_CLK_EN	__BIT(0)
 
-enum { MAP_HP, MAP_CNNT, NMAPS };
-enum { PARENT_XTAL, PARENT_MPLL, PARENT_12M };
+enum { MAP_HP, MAP_CNNT, MAP_HPSYS, MAP_LPPERI, NMAPS };
+#define	NMAPS_REQUIRED	2		/* older device trees: HP and CNNT */
+enum {
+	PARENT_XTAL, PARENT_MPLL, PARENT_12M, PARENT_RC_FAST, PARENT_F80M,
+	PARENT_F160M, PARENT_F240M, PARENT_PLL480, NPARENTS,
+	PARENT_NONE = 0xff
+};
+
+/* Parent selected by each value of a mux field */
+static const uint8_t mux_xtal_rcfast_f80m[4] =
+    { PARENT_XTAL, PARENT_RC_FAST, PARENT_F80M, PARENT_NONE };
+static const uint8_t mux_xtal_rcfast[4] =
+    { PARENT_XTAL, PARENT_RC_FAST, PARENT_NONE, PARENT_NONE };
+static const uint8_t mux_xtal_rcfast_pll480[4] =
+    { PARENT_XTAL, PARENT_RC_FAST, PARENT_PLL480, PARENT_NONE };
+static const uint8_t mux_xtal_rcfast_f160m[4] =
+    { PARENT_XTAL, PARENT_RC_FAST, PARENT_F160M, PARENT_NONE };
+static const uint8_t mux_xtal_rcfast_f240m[4] =
+    { PARENT_XTAL, PARENT_RC_FAST, PARENT_F240M, PARENT_NONE };
+static const uint8_t mux_twai[4] =
+    { PARENT_XTAL, PARENT_NONE, PARENT_F80M, PARENT_NONE };
+static const uint8_t mux_lp_rcfast_xtal[4] =
+    { PARENT_RC_FAST, PARENT_XTAL, PARENT_NONE, PARENT_NONE };
 
 struct esp_clk {
 	struct clk	ec_clk;
 	uint8_t		ec_map;
-	uint8_t		ec_parent;
+	uint8_t		ec_parent;	/* the one enabling selects */
 	bus_size_t	ec_reg;
 	uint32_t	ec_gate;
 	uint32_t	ec_div;		/* divider field (value = div - 1) */
-	uint32_t	ec_mux;		/* parent select field, set to 0 */
+	uint32_t	ec_mux;		/* parent select field */
+	const uint8_t	*ec_muxsel;	/* parents by mux value; NULL: mux 0 */
+	uint16_t	ec_mem;		/* HP_SYSTEM memory power reg, or 0 */
 	bool		ec_sdio;	/* the SD card clock edge generator */
 };
 
@@ -144,8 +320,10 @@ struct esp_clkrst_softc {
 	bus_space_tag_t		sc_bst;
 	bus_space_handle_t	sc_bsh[NMAPS];
 	kmutex_t		sc_lock;
+	bool			sc_mapped[NMAPS];
 	struct clk_domain	sc_clkdom;
-	u_int			sc_parent_rate[3];
+	u_int			sc_parent_rate[NPARENTS];
+	struct clk		sc_pclks[NPARENTS];
 	struct esp_clk		sc_clks[CLK_NUM];
 };
 
@@ -178,6 +356,86 @@ static const struct esp_clk esp_clks[CLK_NUM] = {
 			  .ec_gate = SDIO_LS_CLK_EN,
 			  .ec_mux = SDIO_LS_CLK_SRC_SEL | SDIO_HS_MODE,
 			  .ec_sdio = true },
+
+	/* Peripherals with a selectable source (enabling picks XTAL) */
+#define	MCLK(_id, _name, _map, _reg, _gate, _div, _mux, _muxsel, _mem)	\
+	[_id] = { .ec_clk = { .name = (_name) }, .ec_map = (_map),	\
+		  .ec_parent = PARENT_XTAL, .ec_reg = (_reg),		\
+		  .ec_gate = (_gate), .ec_div = (_div), .ec_mux = (_mux),	\
+		  .ec_muxsel = (_muxsel), .ec_mem = (_mem) }
+#define	UART_GATES	(UART_SYS_CLK_EN | UART_APB_CLK_EN | UART_CLK_EN)
+	MCLK(CLK_UART0, "uart0", MAP_HP, HP_UART_CTRL0(0), UART_GATES,
+	    UART_SCLK_DIV_NUM, UART_CLK_SRC_SEL, mux_xtal_rcfast_f80m,
+	    HPSYS_UART_MEM(0)),
+	MCLK(CLK_UART1, "uart1", MAP_HP, HP_UART_CTRL0(1), UART_GATES,
+	    UART_SCLK_DIV_NUM, UART_CLK_SRC_SEL, mux_xtal_rcfast_f80m,
+	    HPSYS_UART_MEM(1)),
+	MCLK(CLK_UART2, "uart2", MAP_HP, HP_UART_CTRL0(2), UART_GATES,
+	    UART_SCLK_DIV_NUM, UART_CLK_SRC_SEL, mux_xtal_rcfast_f80m,
+	    HPSYS_UART_MEM(2)),
+	MCLK(CLK_UART3, "uart3", MAP_HP, HP_UART_CTRL0(3), UART_GATES,
+	    UART_SCLK_DIV_NUM, UART_CLK_SRC_SEL, mux_xtal_rcfast_f80m,
+	    HPSYS_UART_MEM(3)),
+	MCLK(CLK_I2C0, "i2c0", MAP_HP, HP_I2C_CTRL0(0),
+	    I2C_APB_CLK_EN | I2C_CLK_EN, I2C_CLK_DIV_NUM, I2C_CLK_SRC_SEL,
+	    mux_xtal_rcfast, 0),
+	MCLK(CLK_I2C1, "i2c1", MAP_HP, HP_I2C_CTRL0(1),
+	    I2C_APB_CLK_EN | I2C_CLK_EN, I2C_CLK_DIV_NUM, I2C_CLK_SRC_SEL,
+	    mux_xtal_rcfast, 0),
+#define	GPSPI_GATES	(GPSPI_SYS_CLK_EN | GPSPI_APB_CLK_EN | GPSPI_HS_CLK_EN | \
+			 GPSPI_MST_CLK_EN)
+	MCLK(CLK_GPSPI2, "gpspi2", MAP_HP, HP_GPSPI2_CTRL0, GPSPI_GATES,
+	    GPSPI_HS_CLK_DIV_NUM, GPSPI_CLK_SRC_SEL, mux_xtal_rcfast_pll480, 0),
+	MCLK(CLK_GPSPI3, "gpspi3", MAP_HP, HP_GPSPI3_CTRL0, GPSPI_GATES,
+	    GPSPI_HS_CLK_DIV_NUM, GPSPI_CLK_SRC_SEL, mux_xtal_rcfast_pll480, 0),
+	MCLK(CLK_LEDC0, "ledc0", MAP_HP, HP_LEDC_CTRL0,
+	    LEDC0_APB_CLK_EN | LEDC0_CLK_EN, 0, LEDC0_CLK_SRC_SEL,
+	    mux_xtal_rcfast_f80m, HPSYS_LEDC0_MEM),
+	MCLK(CLK_LEDC1, "ledc1", MAP_HP, HP_LEDC_CTRL0,
+	    LEDC1_APB_CLK_EN | LEDC1_CLK_EN, 0, LEDC1_CLK_SRC_SEL,
+	    mux_xtal_rcfast_f80m, HPSYS_LEDC1_MEM),
+	MCLK(CLK_TWAI0, "twai0", MAP_HP, HP_TWAI_CTRL0(0),
+	    TWAI_APB_CLK_EN | TWAI_CLK_EN, 0, TWAI_CLK_SRC_SEL, mux_twai,
+	    HPSYS_CAN0_MEM),
+	MCLK(CLK_TWAI1, "twai1", MAP_HP, HP_TWAI_CTRL0(1),
+	    TWAI_APB_CLK_EN | TWAI_CLK_EN, 0, TWAI_CLK_SRC_SEL, mux_twai,
+	    HPSYS_CAN1_MEM),
+	MCLK(CLK_CRYPTO, "crypto", MAP_HP, HP_CRYPTO_CTRL0,
+	    CRYPTO_SYS_CLK_EN | CRYPTO_SEC_CLK_EN, 0, CRYPTO_CLK_SRC_SEL,
+	    mux_xtal_rcfast_f240m, 0),
+	CLK(CLK_AES, "aes", MAP_HP, PARENT_XTAL, HP_CRYPTO_CTRL0,
+	    CRYPTO_AES_CLK_EN, 0, 0),
+	CLK(CLK_SHA, "sha", MAP_HP, PARENT_XTAL, HP_CRYPTO_CTRL0,
+	    CRYPTO_SHA_CLK_EN, 0, 0),
+	CLK(CLK_RSA, "rsa", MAP_HP, PARENT_XTAL, HP_CRYPTO_CTRL0,
+	    CRYPTO_RSA_CLK_EN, 0, 0),
+	CLK(CLK_ECC, "ecc", MAP_HP, PARENT_XTAL, HP_CRYPTO_CTRL0,
+	    CRYPTO_ECC_CLK_EN, 0, 0),
+	CLK(CLK_DS, "ds", MAP_HP, PARENT_XTAL, HP_CRYPTO_CTRL0,
+	    CRYPTO_DS_CLK_EN, 0, 0),
+	CLK(CLK_HMAC, "hmac", MAP_HP, PARENT_XTAL, HP_CRYPTO_CTRL0,
+	    CRYPTO_HMAC_CLK_EN, 0, 0),
+	CLK(CLK_ECDSA, "ecdsa", MAP_HP, PARENT_XTAL, HP_CRYPTO_CTRL0,
+	    CRYPTO_ECDSA_CLK_EN, 0, 0),
+	CLK(CLK_TIMG0, "timg0", MAP_HP, PARENT_XTAL, HP_TIMERGRP0_CTRL0,
+	    TIMERGRP_APB_CLK_EN | TIMERGRP_WDT_CLK_EN, 0, 0),
+	CLK(CLK_TIMG1, "timg1", MAP_HP, PARENT_XTAL, HP_TIMERGRP1_CTRL0,
+	    TIMERGRP_APB_CLK_EN | TIMERGRP_WDT_CLK_EN, 0, 0),
+	CLK(CLK_TSENS, "tsens", MAP_LPPERI, PARENT_XTAL, LPPERI_TSENS_CTRL,
+	    LPPERI_CLK_EN, 0, 0),
+	MCLK(CLK_ADC, "adc", MAP_LPPERI, LPPERI_ADC_CTRL, LPPERI_CLK_EN,
+	    LPPERI_DIV_NUM, LPPERI_CLK_SEL, mux_lp_rcfast_xtal, 0),
+	MCLK(CLK_LP_I2C, "lp_i2c", MAP_LPPERI, LPPERI_I2C_CTRL, LPPERI_CLK_EN,
+	    LPPERI_I2C_DIV_NUM, LPPERI_CLK_SEL, mux_lp_rcfast_xtal, 0),
+#define	MCPWM_GATES	(MCPWM_APB_CLK_EN | MCPWM_CLK_EN)
+	MCLK(CLK_MCPWM0, "mcpwm0", MAP_HP, HP_MCPWM_CTRL0(0), MCPWM_GATES,
+	    MCPWM_CLK_DIV_NUM, MCPWM_CLK_SRC_SEL, mux_xtal_rcfast_f160m, 0),
+	MCLK(CLK_MCPWM1, "mcpwm1", MAP_HP, HP_MCPWM_CTRL0(1), MCPWM_GATES,
+	    MCPWM_CLK_DIV_NUM, MCPWM_CLK_SRC_SEL, mux_xtal_rcfast_f160m, 0),
+	MCLK(CLK_MCPWM2, "mcpwm2", MAP_HP, HP_MCPWM_CTRL0(2), MCPWM_GATES,
+	    MCPWM_CLK_DIV_NUM, MCPWM_CLK_SRC_SEL, mux_xtal_rcfast_f160m, 0),
+	MCLK(CLK_MCPWM3, "mcpwm3", MAP_HP, HP_MCPWM_CTRL0(3), MCPWM_GATES,
+	    MCPWM_CLK_DIV_NUM, MCPWM_CLK_SRC_SEL, mux_xtal_rcfast_f160m, 0),
 };
 
 static const struct esp_rst esp_rsts[RST_NUM] = {
@@ -185,6 +443,34 @@ static const struct esp_rst esp_rsts[RST_NUM] = {
 	[RST_EMAC] = { MAP_CNNT, CNNT_HP_EMAC_CTRL, EMAC_RST_EN },
 	[RST_USB_OTGHS] = { MAP_CNNT, CNNT_USB_OTG20_CTRL, USB_OTGHS_RST_EN },
 	[RST_SDMMC] = { MAP_CNNT, CNNT_HP_SDMMC_CTRL, SDMMC_RST_EN },
+	[RST_UART1] = { MAP_HP, HP_UART_CTRL0(1), UART_APB_RST_EN },
+	[RST_UART2] = { MAP_HP, HP_UART_CTRL0(2), UART_APB_RST_EN },
+	[RST_UART3] = { MAP_HP, HP_UART_CTRL0(3), UART_APB_RST_EN },
+	[RST_I2C0] = { MAP_HP, HP_I2C_CTRL0(0), I2C_RST_EN },
+	[RST_I2C1] = { MAP_HP, HP_I2C_CTRL0(1), I2C_RST_EN },
+	[RST_GPSPI2] = { MAP_HP, HP_GPSPI2_CTRL0, GPSPI_RST_EN },
+	[RST_GPSPI3] = { MAP_HP, HP_GPSPI3_CTRL0, GPSPI_RST_EN },
+	[RST_LEDC0] = { MAP_HP, HP_LEDC_CTRL0, LEDC0_RST_EN },
+	[RST_LEDC1] = { MAP_HP, HP_LEDC_CTRL0, LEDC1_RST_EN },
+	[RST_TWAI0] = { MAP_HP, HP_TWAI_CTRL0(0), TWAI_RST_EN },
+	[RST_TWAI1] = { MAP_HP, HP_TWAI_CTRL0(1), TWAI_RST_EN },
+	[RST_CRYPTO] = { MAP_HP, HP_CRYPTO_CTRL0, CRYPTO_RST_EN },
+	[RST_SEC] = { MAP_HP, HP_CRYPTO_CTRL0, CRYPTO_SEC_RST_EN },
+	[RST_AES] = { MAP_HP, HP_CRYPTO_CTRL0, CRYPTO_AES_RST_EN },
+	[RST_SHA] = { MAP_HP, HP_CRYPTO_CTRL0, CRYPTO_SHA_RST_EN },
+	[RST_RSA] = { MAP_HP, HP_CRYPTO_CTRL0, CRYPTO_RSA_RST_EN },
+	[RST_ECC] = { MAP_HP, HP_CRYPTO_CTRL0, CRYPTO_ECC_RST_EN },
+	[RST_DS] = { MAP_HP, HP_CRYPTO_CTRL0, CRYPTO_DS_RST_EN },
+	[RST_HMAC] = { MAP_HP, HP_CRYPTO_CTRL0, CRYPTO_HMAC_RST_EN },
+	[RST_ECDSA] = { MAP_HP, HP_CRYPTO_CTRL0, CRYPTO_ECDSA_RST_EN },
+	[RST_TIMG1] = { MAP_HP, HP_TIMERGRP1_CTRL0, TIMERGRP_RST_EN },
+	[RST_TSENS] = { MAP_LPPERI, LPPERI_TSENS_CTRL, LPPERI_RST_EN },
+	[RST_ADC] = { MAP_LPPERI, LPPERI_ADC_CTRL, LPPERI_RST_EN },
+	[RST_LP_I2C] = { MAP_LPPERI, LPPERI_I2C_CTRL, LPPERI_RST_EN },
+	[RST_MCPWM0] = { MAP_HP, HP_MCPWM_CTRL0(0), MCPWM_RST_EN },
+	[RST_MCPWM1] = { MAP_HP, HP_MCPWM_CTRL0(1), MCPWM_RST_EN },
+	[RST_MCPWM2] = { MAP_HP, HP_MCPWM_CTRL0(2), MCPWM_RST_EN },
+	[RST_MCPWM3] = { MAP_HP, HP_MCPWM_CTRL0(3), MCPWM_RST_EN },
 };
 
 static const struct device_compatible_entry compat_data[] = {
@@ -213,6 +499,22 @@ esp_clkrst_read(struct esp_clkrst_softc *sc, u_int map, bus_size_t reg)
 
 /* clk(9) backend */
 
+static const char * const esp_parent_names[NPARENTS] = {
+	[PARENT_XTAL] = "xtal", [PARENT_MPLL] = "mpll", [PARENT_12M] = "12m",
+	[PARENT_RC_FAST] = "rc_fast", [PARENT_F80M] = "ref_f80m",
+	[PARENT_F160M] = "pll_f160m", [PARENT_F240M] = "pll_f240m",
+	[PARENT_PLL480] = "bbpll",
+};
+
+/* The parents are fixed-rate clocks; which one is this? */
+static int
+esp_clk_pindex(struct esp_clkrst_softc *sc, struct clk *clk)
+{
+	if (clk >= &sc->sc_pclks[0] && clk < &sc->sc_pclks[NPARENTS])
+		return clk - &sc->sc_pclks[0];
+	return -1;
+}
+
 static struct clk *
 esp_clk_get(void *priv, const char *name)
 {
@@ -223,6 +525,10 @@ esp_clk_get(void *priv, const char *name)
 		    strcmp(sc->sc_clks[id].ec_clk.name, name) == 0)
 			return &sc->sc_clks[id].ec_clk;
 	}
+	for (u_int p = 0; p < NPARENTS; p++) {
+		if (strcmp(esp_parent_names[p], name) == 0)
+			return &sc->sc_pclks[p];
+	}
 	return NULL;
 }
 
@@ -231,12 +537,47 @@ esp_clk_put(void *priv, struct clk *clk)
 {
 }
 
+/* The parent the mux selects now. */
+static u_int
+esp_clk_parent(struct esp_clkrst_softc *sc, const struct esp_clk *ec)
+{
+	if (ec->ec_muxsel == NULL)
+		return ec->ec_parent;
+	return ec->ec_muxsel[__SHIFTOUT(esp_clkrst_read(sc, ec->ec_map,
+	    ec->ec_reg), ec->ec_mux)];
+}
+
+static u_int
+esp_clk_parent_rate(struct esp_clkrst_softc *sc, const struct esp_clk *ec)
+{
+	const u_int p = esp_clk_parent(sc, ec);
+
+	return p < NPARENTS ? sc->sc_parent_rate[p] : 0;
+}
+
+static struct clk *
+esp_clk_get_parent(void *priv, struct clk *clk)
+{
+	struct esp_clkrst_softc * const sc = priv;
+	u_int p;
+
+	if (esp_clk_pindex(sc, clk) >= 0)
+		return NULL;
+	p = esp_clk_parent(sc, (struct esp_clk *)clk);
+	return p < NPARENTS ? &sc->sc_pclks[p] : NULL;
+}
+
 static u_int
 esp_clk_get_rate(void *priv, struct clk *clk)
 {
 	struct esp_clkrst_softc * const sc = priv;
 	struct esp_clk * const ec = (struct esp_clk *)clk;
-	const u_int prate = sc->sc_parent_rate[ec->ec_parent];
+	const int pi = esp_clk_pindex(sc, clk);
+
+	if (pi >= 0)
+		return sc->sc_parent_rate[pi];
+
+	const u_int prate = esp_clk_parent_rate(sc, ec);
 
 	if (ec->ec_sdio) {
 		const uint32_t f = esp_clkrst_read(sc, MAP_HP,
@@ -299,7 +640,11 @@ esp_clk_set_rate(void *priv, struct clk *clk, u_int rate)
 {
 	struct esp_clkrst_softc * const sc = priv;
 	struct esp_clk * const ec = (struct esp_clk *)clk;
-	const u_int prate = sc->sc_parent_rate[ec->ec_parent];
+
+	if (esp_clk_pindex(sc, clk) >= 0)
+		return rate == esp_clk_get_rate(priv, clk) ? 0 : EINVAL;
+
+	const u_int prate = esp_clk_parent_rate(sc, ec);
 	const u_int maxdiv = __SHIFTOUT_MASK(ec->ec_div) + 1;
 	u_int div;
 
@@ -308,6 +653,8 @@ esp_clk_set_rate(void *priv, struct clk *clk, u_int rate)
 	if (ec->ec_div == 0 || rate == 0)
 		return rate == esp_clk_get_rate(priv, clk) ? 0 : EINVAL;
 
+	if (prate == 0)
+		return EINVAL;
 	div = (prate + rate / 2) / rate;
 	if (div < 1 || div > maxdiv)
 		return EINVAL;
@@ -322,8 +669,27 @@ esp_clk_enable(void *priv, struct clk *clk)
 	struct esp_clkrst_softc * const sc = priv;
 	struct esp_clk * const ec = (struct esp_clk *)clk;
 
-	/* Select the (only) parent, then ungate. */
-	esp_clkrst_update(sc, ec->ec_map, ec->ec_reg, ec->ec_mux, 0);
+	if (esp_clk_pindex(sc, clk) >= 0)
+		return 0;
+	if (!sc->sc_mapped[ec->ec_map])
+		return ENXIO;
+
+	/* Select the parent, power up the block's memory, then ungate. */
+	if (ec->ec_muxsel != NULL) {
+		u_int sel;
+
+		for (sel = 0; sel < 4; sel++)
+			if (ec->ec_muxsel[sel] == ec->ec_parent)
+				break;
+		KASSERT(sel < 4);
+		esp_clkrst_update(sc, ec->ec_map, ec->ec_reg, ec->ec_mux,
+		    __SHIFTIN(sel, ec->ec_mux));
+	} else {
+		esp_clkrst_update(sc, ec->ec_map, ec->ec_reg, ec->ec_mux, 0);
+	}
+	if (ec->ec_mem != 0 && sc->sc_mapped[MAP_HPSYS])
+		esp_clkrst_update(sc, MAP_HPSYS, ec->ec_mem, 0xf,
+		    HPSYS_MEM_ON);
 	if (ec->ec_sdio)
 		esp_clk_sdio_enable(sc);
 	esp_clkrst_update(sc, ec->ec_map, ec->ec_reg, 0, ec->ec_gate);
@@ -336,6 +702,8 @@ esp_clk_disable(void *priv, struct clk *clk)
 	struct esp_clkrst_softc * const sc = priv;
 	struct esp_clk * const ec = (struct esp_clk *)clk;
 
+	if (esp_clk_pindex(sc, clk) >= 0)
+		return 0;
 	esp_clkrst_update(sc, ec->ec_map, ec->ec_reg, ec->ec_gate, 0);
 	return 0;
 }
@@ -347,6 +715,7 @@ static const struct clk_funcs esp_clk_funcs = {
 	.set_rate = esp_clk_set_rate,
 	.enable = esp_clk_enable,
 	.disable = esp_clk_disable,
+	.get_parent = esp_clk_get_parent,
 };
 
 static struct clk *
@@ -394,6 +763,8 @@ esp_clkrst_reset_assert(device_t dev, void *priv)
 	struct esp_clkrst_softc * const sc = device_private(dev);
 	const struct esp_rst * const er = priv;
 
+	if (!sc->sc_mapped[er->er_map])
+		return ENXIO;
 	esp_clkrst_update(sc, er->er_map, er->er_reg, 0, er->er_mask);
 	return 0;
 }
@@ -404,6 +775,8 @@ esp_clkrst_reset_deassert(device_t dev, void *priv)
 	struct esp_clkrst_softc * const sc = device_private(dev);
 	const struct esp_rst * const er = priv;
 
+	if (!sc->sc_mapped[er->er_map])
+		return ENXIO;
 	esp_clkrst_update(sc, er->er_map, er->er_reg, er->er_mask, 0);
 	return 0;
 }
@@ -444,12 +817,16 @@ esp_clkrst_attach(device_t parent, device_t self, void *aux)
 	sc->sc_dev = self;
 	sc->sc_bst = faa->faa_bst;
 	for (u_int map = 0; map < NMAPS; map++) {
+		if (fdtbus_get_reg(phandle, map, &addr, &size) != 0 &&
+		    map >= NMAPS_REQUIRED)
+			continue;
 		if (fdtbus_get_reg(phandle, map, &addr, &size) != 0 ||
 		    bus_space_map(sc->sc_bst, addr, size, 0,
 			&sc->sc_bsh[map]) != 0) {
 			aprint_error(": couldn't map registers\n");
 			return;
 		}
+		sc->sc_mapped[map] = true;
 	}
 	mutex_init(&sc->sc_lock, MUTEX_DEFAULT, IPL_HIGH);
 
@@ -458,6 +835,11 @@ esp_clkrst_attach(device_t parent, device_t self, void *aux)
 	sc->sc_parent_rate[PARENT_MPLL] =
 	    esp_clkrst_parent_rate(phandle, "mpll", 500000000);
 	sc->sc_parent_rate[PARENT_12M] = 12000000;
+	sc->sc_parent_rate[PARENT_RC_FAST] = 17500000;	/* approximate */
+	sc->sc_parent_rate[PARENT_F80M] = 80000000;
+	sc->sc_parent_rate[PARENT_F160M] = 160000000;
+	sc->sc_parent_rate[PARENT_F240M] = 240000000;
+	sc->sc_parent_rate[PARENT_PLL480] = 480000000;
 
 	sc->sc_clkdom.name = device_xname(self);
 	sc->sc_clkdom.funcs = &esp_clk_funcs;
@@ -468,6 +850,11 @@ esp_clkrst_attach(device_t parent, device_t self, void *aux)
 			continue;
 		sc->sc_clks[id].ec_clk.domain = &sc->sc_clkdom;
 		clk_attach(&sc->sc_clks[id].ec_clk);
+	}
+	for (u_int p = 0; p < NPARENTS; p++) {
+		sc->sc_pclks[p].name = esp_parent_names[p];
+		sc->sc_pclks[p].domain = &sc->sc_clkdom;
+		clk_attach(&sc->sc_pclks[p]);
 	}
 
 	aprint_naive("\n");

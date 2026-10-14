@@ -112,7 +112,8 @@
 #define	SYSTIMER_FREQ		16000000
 
 /*
- * UART (ESP32-S3 compatible register layout).
+ * UART.  The _SYNC registers (CLKDIV, CONF0, HWFC, TOUT, ...) take effect
+ * on a REG_UPDATE, which the UART core clock completes.
  */
 #define	UART_FIFO		0x00
 #define	UART_INT_RAW		0x04
@@ -127,13 +128,39 @@
 #define	 UART_INT_BRK_DET	__BIT(7)
 #define	 UART_INT_RXFIFO_TOUT	__BIT(8)
 #define	UART_CLKDIV		0x14
+#define	 UART_CLKDIV_INT	__BITS(11, 0)
+#define	 UART_CLKDIV_FRAG	__BITS(23, 20)
 #define	UART_STATUS		0x1c
-#define	 UART_STATUS_RXFIFO_CNT	__BITS(9, 0)
-#define	 UART_STATUS_TXFIFO_CNT	__BITS(25, 16)
+#define	 UART_STATUS_RXFIFO_CNT	__BITS(7, 0)
+#define	 UART_STATUS_TXFIFO_CNT	__BITS(23, 16)
 #define	UART_CONF0		0x20
+#define	 UART_CONF0_PARITY	__BIT(0)	/* odd */
+#define	 UART_CONF0_PARITY_EN	__BIT(1)
+#define	 UART_CONF0_BIT_NUM	__BITS(3, 2)	/* 5..8 bits */
+#define	 UART_CONF0_STOP_BIT_NUM __BITS(5, 4)	/* 1: 1, 3: 2 */
+#define	 UART_CONF0_TXD_BRK	__BIT(6)
+#define	 UART_CONF0_IRDA_EN	__BIT(14)
+#define	 UART_CONF0_LOOPBACK	__BIT(12)
+#define	 UART_CONF0_TX_FLOW_EN	__BIT(13)	/* CTS */
+#define	 UART_CONF0_ERR_WR_MASK	__BIT(18)
+#define	 UART_CONF0_SW_RTS	__BIT(21)
+#define	 UART_CONF0_RXFIFO_RST	__BIT(22)
+#define	 UART_CONF0_TXFIFO_RST	__BIT(23)
 #define	UART_CONF1		0x24
-#define	 UART_CONF1_RXFIFO_FULL_THRHD	__BITS(9, 0)
-#define	 UART_CONF1_TXFIFO_EMPTY_THRHD	__BITS(19, 10)
+#define	 UART_CONF1_RXFIFO_FULL_THRHD	__BITS(7, 0)
+#define	 UART_CONF1_TXFIFO_EMPTY_THRHD	__BITS(15, 8)
+#define	UART_HWFC_CONF		0x2c
+#define	 UART_HWFC_RX_FLOW_THRHD	__BITS(7, 0)
+#define	 UART_HWFC_RX_FLOW_EN	__BIT(8)	/* RTS */
+#define	UART_RS485_CONF		0x4c
+#define	UART_TOUT_CONF		0x64
+#define	 UART_TOUT_RX_TOUT_EN	__BIT(0)
+#define	 UART_TOUT_RX_TOUT_THRHD	__BITS(11, 2)	/* bit times */
+#define	UART_FSM_STATUS		0x70
+#define	 UART_FSM_ST_UTX_OUT	__BITS(7, 4)
+#define	UART_CLK_CONF		0x88
+#define	 UART_CLK_CONF_TX_SCLK_EN __BIT(24)
+#define	 UART_CLK_CONF_RX_SCLK_EN __BIT(25)
 #define	UART_REG_UPDATE		0x98
 #define	 UART_REG_UPDATE_BUSY	__BIT(0)
 #define	UART_FIFO_SIZE		128

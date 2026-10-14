@@ -449,6 +449,11 @@ espcp_start(device_t self)
 		ea.ea_addr = sc->sc_shm->es_bt_addr;
 		config_found(self, &ea, espcp_print, CFARGS_NONE);
 	}
+	if (sc->sc_shm->es_caps & ESPCP_CAP_SENSORS) {
+		ea.ea_name = "espsensor";
+		ea.ea_addr = NULL;
+		config_found(self, &ea, espcp_print, CFARGS_NONE);
+	}
 }
 
 static void

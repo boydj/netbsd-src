@@ -105,6 +105,11 @@ PROG	usr/sbin/btconfig
 PROG	usr/sbin/chroot
 PROG	usr/sbin/espwifictl
 PROG	usr/sbin/gpioctl
+PROG	usr/sbin/i2cscan
+PROG	usr/sbin/envstat
+PROG	usr/sbin/wdogctl
+PROG	usr/sbin/i2cxfer
+PROG	usr/sbin/spixfer
 PROG	usr/sbin/pwd_mkdb
 PROG	usr/sbin/usbdevs
 
@@ -115,6 +120,8 @@ SPECIAL	vi	srcdir	external/bsd/nvi/usr.bin/nvi
 SPECIAL	fptest	srcdir	distrib/riscv/esp32s31/fptest
 SPECIAL	sntpdate	srcdir	distrib/riscv/esp32s31/sntpdate
 SPECIAL	espwifictl	srcdir	distrib/riscv/esp32s31/espwifictl
+SPECIAL	i2cxfer	srcdir	distrib/riscv/esp32s31/i2cxfer
+SPECIAL	spixfer	srcdir	distrib/riscv/esp32s31/spixfer
 SPECIAL	dhcpcd	srcdir	distrib/riscv/esp32s31/x_dhcpcd
 SPECIAL	ftp	srcdir	distrib/riscv/esp32s31/x_ftp
 SPECIAL	ifconfig	srcdir	distrib/utils/x_ifconfig
@@ -122,7 +129,7 @@ SPECIAL	ping	srcdir	distrib/utils/x_ping
 SPECIAL	ping6	srcdir	distrib/utils/x_ping6
 SPECIAL	route	srcdir	distrib/utils/x_route
 
-LIBS	libhack.o -lbluetooth -levent -ledit -lutil -lcurses -lterminfo -lkvm -lcrypt -lm -lprop -lbz2 -lz
+LIBS	libhack.o -lbluetooth -levent -lmj -ledit -lutil -lcurses -lterminfo -lkvm -lcrypt -lm -lprop -lbz2 -lz
 
 # init invokes the shell as -sh
 ARGVLN	sh -sh

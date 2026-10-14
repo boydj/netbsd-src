@@ -34,6 +34,16 @@ device	espxiproot
 attach	espxiproot at fdt with esp_xiproot
 file	arch/riscv/espressif/esp_xiproot.c	esp_xiproot
 
+# I2C controllers
+device	espi2c: i2cbus
+attach	espi2c at fdt with esp_i2c: fdt_i2c
+file	arch/riscv/espressif/esp_i2c.c		esp_i2c
+
+# General-purpose SPI masters
+device	espspi: spibus
+attach	espspi at fdt with esp_spi: fdt_spi
+file	arch/riscv/espressif/esp_spi.c		esp_spi
+
 # Writable partition of the SPI flash, as a disk
 device	espnor: disk
 attach	espnor at fdt with esp_spiflash
@@ -75,3 +85,17 @@ file	arch/riscv/espressif/esp_cpwifi.c	espwifi
 device	espbt: btbus, bluetooth
 attach	espbt at espcp
 file	arch/riscv/espressif/esp_cpbt.c		espbt
+
+device	espsensor: sysmon_envsys
+attach	espsensor at espcp
+file	arch/riscv/espressif/esp_cpsensor.c	espsensor
+
+# Watchdog (timer group 1)
+device	espwdt: sysmon_wdog
+attach	espwdt at fdt with esp_wdt
+file	arch/riscv/espressif/esp_wdt.c		esp_wdt
+
+# RTC timer as the time-of-day clock
+device	esprtc
+attach	esprtc at fdt with esp_rtc
+file	arch/riscv/espressif/esp_rtc.c		esp_rtc

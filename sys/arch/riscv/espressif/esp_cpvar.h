@@ -41,7 +41,7 @@
 #include <riscv/espressif/esp_cpproto.h>
 
 struct espcp_attach_args {
-	const char	*ea_name;	/* "espwifi" or "espbt" */
+	const char	*ea_name;	/* "espwifi", "espbt", "espsensor" */
 	const uint8_t	*ea_addr;	/* MAC or BD_ADDR */
 };
 

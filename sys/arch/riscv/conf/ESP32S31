@@ -86,6 +86,14 @@ espusj*		at fdt?			# USB-Serial/JTAG (CDC-ACM)
 esptrng*	at fdt?			# true random number generator
 espxiproot*	at fdt?			# root file system in SPI flash
 espnor*	at fdt?			# writable SPI flash partition (/persist)
+espwdt*		at fdt?			# watchdog (wdogctl)
+esprtc*		at fdt?			# RTC timer: time of day across resets
+
+# I2C and SPI: pins through the GPIO matrix, see sysctl hw.espgpio0
+espi2c*		at fdt?			# I2C0, I2C1
+iic*		at i2cbus?
+espspi*		at fdt?			# GPSPI2, GPSPI3
+spi*		at spibus?
 
 espgpio*	at fdt? pass 2		# GPIO and pin multiplexing
 gpio*		at gpiobus?
@@ -106,6 +114,7 @@ espcp*		at fdt?			# loader and message rings
 espwifi*	at espcp?		# Wi-Fi station (espwifictl)
 espbt*		at espcp?		# Bluetooth HCI
 bthub*		at espbt?
+espsensor*	at espcp?		# temperature sensor, ADCs (envstat)
 
 # USB host: DesignWare OTG-HS in host mode
 espusbphy*	at fdt? pass 3		# USB 2.0 PHY

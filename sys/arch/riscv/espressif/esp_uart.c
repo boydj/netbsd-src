@@ -27,9 +27,23 @@
  */
 
 /*
- * Espressif UART (ESP32-S3 style register layout, as found on the
- * ESP32-S31).  The line settings programmed by the boot firmware
- * (115200 8N1 from the 40MHz crystal) are left alone.
+ * Espressif ESP32-S31 UARTs.  UART0 is the console, set up by the boot
+ * firmware (115200 8N1); its line settings stay as they are until changed
+ * with stty.  UART1-3 are clocked, reset and set to 115200 8N1 here; their
+ * pins go through the GPIO matrix (pinctrl, or sysctl hw.espgpio0.pinN).
+ *
+ * Baud rate: the UART divides its source clock (XTAL, 40 MHz, unless the
+ * boot firmware picked another) by a pre-divider in HP_SYS_CLKRST (the
+ * clock's rate, 1..256) and a 12.4 fixed-point divider of its own.
+ *
+ *	uart1: serial@2038b000 {
+ *		compatible = "espressif,esp32s31-uart";
+ *		reg = <0x2038b000 0x100>;
+ *		interrupt-parent = <&intmtx>;
+ *		interrupts = <10 4>;
+ *		clocks = <&clkrst 14>;
+ *		resets = <&clkrst 6>;
+ *	};
  */
 
 #include "opt_console.h"
@@ -59,6 +73,7 @@ __KERNEL_RCSID(0, "$NetBSD$");
 
 #include <dev/cons.h>
 
+#include <dev/clk/clk.h>
 #include <dev/fdt/fdtvar.h>
 #include <dev/fdt/fdt_console.h>
 
@@ -97,6 +112,8 @@ struct esp_uart_softc {
 	void			*sc_sih;
 
 	struct tty		*sc_tty;
+	struct clk		*sc_clk;	/* NULL: settings fixed */
+	bool			sc_console;
 
 	/* receive ring, filled by the hard interrupt */
 	volatile u_int		sc_rbuf_w;
@@ -153,6 +170,9 @@ static int esp_uart_cmajor = -1;
 	bus_space_read_4((sc)->sc_bst, (sc)->sc_bsh, (reg))
 #define	WR4(sc, reg, val)	\
 	bus_space_write_4((sc)->sc_bst, (sc)->sc_bsh, (reg), (val))
+
+static void	esp_uart_sync_regs(bus_space_tag_t, bus_space_handle_t);
+static int	esp_uart_setline(struct esp_uart_softc *, tcflag_t, speed_t);
 
 static inline u_int
 esp_uart_txcnt(bus_space_tag_t bst, bus_space_handle_t bsh)
@@ -219,19 +239,53 @@ esp_uart_attach(device_t parent, device_t self, void *aux)
 	}
 
 	mutex_init(&sc->sc_lock, MUTEX_DEFAULT, IPL_SERIAL);
+	sc->sc_console = (esp_uart_console_phandle == phandle);
+	sc->sc_clk = fdtbus_clock_get_index(phandle, 0);
 
 	/* Quiesce the interrupt sources until somebody opens us. */
 	WR4(sc, UART_INT_ENA, 0);
 	WR4(sc, UART_INT_CLR, 0xffffffff);
 
 	/*
+	 * Not the console: clock it, reset it and give it a known line
+	 * setting.  (The console runs as the boot firmware left it.)
+	 */
+	if (!sc->sc_console && sc->sc_clk != NULL) {
+		struct fdtbus_reset *rst;
+
+		fdtbus_pinctrl_set_config(phandle, "default");
+		if (clk_enable(sc->sc_clk) != 0) {
+			aprint_error(": couldn't enable clock\n");
+			return;
+		}
+		if ((rst = fdtbus_reset_get_index(phandle, 0)) != NULL) {
+			fdtbus_reset_assert(rst);
+			fdtbus_reset_deassert(rst);
+		}
+		WR4(sc, UART_CLK_CONF, RD4(sc, UART_CLK_CONF) |
+		    UART_CLK_CONF_TX_SCLK_EN | UART_CLK_CONF_RX_SCLK_EN);
+		WR4(sc, UART_RS485_CONF, 0);
+		WR4(sc, UART_CONF0, RD4(sc, UART_CONF0) &
+		    ~(UART_CONF0_IRDA_EN | UART_CONF0_LOOPBACK));
+		WR4(sc, UART_INT_ENA, 0);
+		WR4(sc, UART_INT_CLR, 0xffffffff);
+		if (esp_uart_setline(sc, TTYDEF_CFLAG, 115200) != 0) {
+			aprint_error(": can't set the line\n");
+			sc->sc_clk = NULL;
+		}
+	} else if (sc->sc_clk != NULL &&
+	    clk_get_parent(sc->sc_clk) == NULL) {
+		sc->sc_clk = NULL;	/* source unknown: leave it alone */
+	}
+
+	/*
 	 * Interrupt on every received byte, and when the transmit FIFO
 	 * drains below a few bytes.
 	 */
-	WR4(sc, UART_CONF1,
+	WR4(sc, UART_CONF1, (RD4(sc, UART_CONF1) &
+	    ~(UART_CONF1_RXFIFO_FULL_THRHD | UART_CONF1_TXFIFO_EMPTY_THRHD)) |
 	    __SHIFTIN(1, UART_CONF1_RXFIFO_FULL_THRHD) |
 	    __SHIFTIN(8, UART_CONF1_TXFIFO_EMPTY_THRHD));
-	esp_uart_sync_regs(sc->sc_bst, sc->sc_bsh);
 
 	if (!fdtbus_intr_str(phandle, 0, intrstr, sizeof(intrstr)))
 		strlcpy(intrstr, "?", sizeof(intrstr));
@@ -494,14 +548,103 @@ out:
 	splx(s);
 }
 
+/*
+ * Program the line: character size, parity, stop bits, flow control and
+ * baud rate.  Called with sc_lock held or before the device is in use.
+ */
+static int
+esp_uart_setline(struct esp_uart_softc *sc, tcflag_t cflag, speed_t speed)
+{
+	struct clk *parent;
+	uint64_t src;
+	u_int sclk_div, div16, guard;
+	uint32_t conf0, hwfc;
+
+	if (sc->sc_clk == NULL)
+		return ENODEV;
+	if (speed == 0)
+		return 0;		/* hang up: nothing to do */
+	if ((parent = clk_get_parent(sc->sc_clk)) == NULL ||
+	    (src = clk_get_rate(parent)) == 0)
+		return ENODEV;
+
+	/* src / sclk_div / (div16 / 16) = speed, div16 < 4096 * 16 */
+	sclk_div = howmany(src, (uint64_t)UART_CLKDIV_INT * speed);
+	if (sclk_div == 0)
+		sclk_div = 1;
+	if (sclk_div > 256)
+		return EINVAL;
+	div16 = (src << 4) / ((uint64_t)speed * sclk_div);
+	if (div16 < 16)
+		return EINVAL;
+
+	conf0 = RD4(sc, UART_CONF0) & ~(UART_CONF0_PARITY |
+	    UART_CONF0_PARITY_EN | UART_CONF0_BIT_NUM |
+	    UART_CONF0_STOP_BIT_NUM | UART_CONF0_TX_FLOW_EN);
+	switch (ISSET(cflag, CSIZE)) {
+	case CS5: conf0 |= __SHIFTIN(0, UART_CONF0_BIT_NUM); break;
+	case CS6: conf0 |= __SHIFTIN(1, UART_CONF0_BIT_NUM); break;
+	case CS7: conf0 |= __SHIFTIN(2, UART_CONF0_BIT_NUM); break;
+	default:  conf0 |= __SHIFTIN(3, UART_CONF0_BIT_NUM); break;
+	}
+	if (ISSET(cflag, PARENB))
+		conf0 |= UART_CONF0_PARITY_EN |
+		    (ISSET(cflag, PARODD) ? UART_CONF0_PARITY : 0);
+	conf0 |= __SHIFTIN(ISSET(cflag, CSTOPB) ? 3 : 1,
+	    UART_CONF0_STOP_BIT_NUM);
+	hwfc = RD4(sc, UART_HWFC_CONF) &
+	    ~(UART_HWFC_RX_FLOW_EN | UART_HWFC_RX_FLOW_THRHD);
+	if (ISSET(cflag, CRTSCTS)) {
+		conf0 |= UART_CONF0_TX_FLOW_EN;
+		hwfc |= UART_HWFC_RX_FLOW_EN |
+		    __SHIFTIN(UART_FIFO_SIZE - 16, UART_HWFC_RX_FLOW_THRHD);
+	}
+
+	/* Let what's in the transmit FIFO go out at the old speed. */
+	for (guard = 100000; guard > 0 &&
+	    (esp_uart_txcnt(sc->sc_bst, sc->sc_bsh) != 0 ||
+	     __SHIFTOUT(RD4(sc, UART_FSM_STATUS), UART_FSM_ST_UTX_OUT) != 0);
+	    guard--)
+		DELAY(10);
+
+	if (clk_set_rate(sc->sc_clk, src / sclk_div) != 0)
+		return EINVAL;
+	WR4(sc, UART_CLKDIV, __SHIFTIN(div16 >> 4, UART_CLKDIV_INT) |
+	    __SHIFTIN(div16 & 0xf, UART_CLKDIV_FRAG));
+	WR4(sc, UART_CONF0, conf0);
+	WR4(sc, UART_HWFC_CONF, hwfc);
+	/* Pass on what's received after 4 idle characters' time. */
+	WR4(sc, UART_TOUT_CONF, UART_TOUT_RX_TOUT_EN |
+	    __SHIFTIN(4 * 12, UART_TOUT_RX_TOUT_THRHD));
+	esp_uart_sync_regs(sc->sc_bst, sc->sc_bsh);
+	return 0;
+}
+
 static int
 esp_uart_param(struct tty *tp, struct termios *t)
 {
-	/* Line settings are fixed by the firmware. */
+	struct esp_uart_softc * const sc = tp->t_sc;
+	int error = 0;
+
+	if (t->c_ispeed != 0 && t->c_ispeed != t->c_ospeed)
+		return EINVAL;
+
+	if (sc->sc_clk == NULL) {
+		/* The boot firmware's settings, whatever they are. */
+		goto done;
+	}
+	if (tp->t_ospeed == t->c_ospeed && tp->t_cflag == t->c_cflag)
+		goto done;
+
+	mutex_spin_enter(&sc->sc_lock);
+	error = esp_uart_setline(sc, t->c_cflag, t->c_ospeed);
+	mutex_spin_exit(&sc->sc_lock);
+	if (error)
+		return error;
+done:
 	tp->t_ispeed = t->c_ispeed;
 	tp->t_ospeed = t->c_ospeed;
 	tp->t_cflag = t->c_cflag;
-
 	return 0;
 }
 

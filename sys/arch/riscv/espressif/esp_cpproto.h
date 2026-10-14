@@ -175,6 +175,7 @@ struct espcp_shm {
 
 #define	ESPCP_CAP_WIFI		0x00000001
 #define	ESPCP_CAP_BT		0x00000002	/* BR/EDR and LE */
+#define	ESPCP_CAP_SENSORS	0x00000004	/* temperature, ADCs */
 
 /*
  * Control channel.  Every message starts with struct espcp_ctl; replies
@@ -204,6 +205,7 @@ struct espcp_ctl {
 #define	ESPCP_CTL_WIFI_STATUS	7	/* reply: espcp_wifi_status */
 #define	ESPCP_CTL_BT_ENABLE	8
 #define	ESPCP_CTL_BT_DISABLE	9
+#define	ESPCP_CTL_SENSORS	10	/* espcp_sensors_req; reply: espcp_sensors */
 
 #define	ESPCP_EVT_WIFI_LINK	64	/* espcp_wifi_status */
 
@@ -262,6 +264,29 @@ struct espcp_wifi_status {
 #define	ESPCP_WIFI_IDLE		1	/* on, not associated */
 #define	ESPCP_WIFI_CONNECTING	2
 #define	ESPCP_WIFI_CONNECTED	3
+
+/*
+ * Sensors: the on-chip temperature sensor and the two SAR ADCs, read with
+ * ESP-IDF's drivers (which own the analog I2C bus and the calibration).
+ * ADC channels: bit 8*u + c of the mask is unit u+1 channel c; ADC1
+ * channels 0-7 are GPIO42-49, ADC2 channels 0-7 GPIO50-57.  A channel's
+ * pad is switched to analog the first time it's read.
+ */
+#define	ESPCP_ADC_CHANNELS	16
+
+struct espcp_sensors_req {
+	uint32_t	sr_adc_mask;	/* channels to read */
+};
+
+struct espcp_sensors {
+	int32_t		ss_temp;	/* milli-degrees Celsius */
+	uint32_t	ss_flags;
+#define	ESPCP_SENS_TEMP		0x01	/* ss_temp is valid */
+	uint32_t	ss_adc_valid;	/* channels read */
+	uint32_t	ss_adc_cal;	/* ... whose mV are calibrated */
+	int32_t		ss_adc_raw[ESPCP_ADC_CHANNELS];
+	int32_t		ss_adc_mv[ESPCP_ADC_CHANNELS];
+};
 
 /*
  * NetBSD's espwifi(4): driver-specific ioctls (SIOCGDRVSPEC/SIOCSDRVSPEC,
