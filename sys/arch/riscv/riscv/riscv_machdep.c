@@ -772,6 +772,24 @@ init_riscv(register_t hartid, paddr_t dtb)
 		memory_end = memory_limit;
 	}
 
+#ifndef _LP64
+	/*
+	 * Only memory inside the kernel megapage window can be used (it
+	 * doubles as the direct map), see RISCV_DIRECTMAP_* in vmparam.h.
+	 */
+	const paddr_t window_start = KERN_VTOPHYS(RISCV_DIRECTMAP_START);
+	const paddr_t window_end = window_start + RISCV_DIRECTMAP_SIZE;
+	if (memory_start < window_start) {
+		fdt_memory_remove_range(memory_start,
+		    window_start - memory_start);
+		memory_start = window_start;
+	}
+	if (memory_end > window_end) {
+		fdt_memory_remove_range(window_end, memory_end - window_end);
+		memory_end = window_end;
+	}
+#endif
+
 	uint64_t memory_size __unused = memory_end - memory_start;
 
 	VPRINTF("%s: memory start %" PRIx64 " end %" PRIx64 " (len %"
@@ -841,20 +859,13 @@ init_riscv(register_t hartid, paddr_t dtb)
 	 */
 	paddr_t msgbufaddr = 0;
 
-#ifdef _LP64
 	/* XXX check all ranges for last one with a big enough hole */
 	msgbufaddr = memory_end - MSGBUFSIZE;
 	KASSERT(msgbufaddr != 0);	/* no space for msgbuf */
 	fdt_memory_remove_range(msgbufaddr, MSGBUFSIZE);
-	msgbufaddr = RISCV_PA_TO_KVA(msgbufaddr);
-	VPRINTF("msgbufaddr = %#lx\n", msgbufaddr);
-	initmsgbuf((void *)msgbufaddr, MSGBUFSIZE);
-#endif
-
-	KASSERT(msgbufaddr != 0);	/* no space for msgbuf */
-#ifdef _LP64
-	initmsgbuf((void *)RISCV_PA_TO_KVA(msgbufaddr), MSGBUFSIZE);
-#endif
+	const vaddr_t msgbufva = RISCV_PA_TO_KVA(msgbufaddr);
+	VPRINTF("msgbufva = %#lx\n", msgbufva);
+	initmsgbuf((void *)msgbufva, MSGBUFSIZE);
 
 #define	DPRINTF(v)	VPRINTF("%24s = 0x%16lx\n", #v, (unsigned long)v);
 

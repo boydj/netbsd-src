@@ -200,6 +200,24 @@
 #define RISCV_DIRECTMAP_P(va)	(((vaddr_t) (va) & RISCV_DIRECTMAP_MASK) == RISCV_DIRECTMAP_MASK)
 #define RISCV_PA_TO_KVA(pa)	((vaddr_t) ((pa) | RISCV_DIRECTMAP_START))
 #define RISCV_KVA_TO_PA(va)	((paddr_t) ((va) & ~RISCV_DIRECTMAP_MASK))
+#else
+/*
+ * RV32 (Sv32) has no room for a large direct map.  The kernel image is
+ * mapped with megapages covering VM_KERNEL_SIZE bytes starting at the
+ * megapage containing the kernel's load address.  Physical memory inside
+ * that window is reachable at (pa + kern_vtopdiff) and is used as the
+ * direct map; memory outside of it is not given to UVM.
+ */
+#ifdef _KERNEL
+extern unsigned long kern_vtopdiff;
+#endif
+#define RISCV_DIRECTMAP_START	VM_MIN_KERNEL_ADDRESS
+#define RISCV_DIRECTMAP_SIZE	VM_KERNEL_SIZE
+#define RISCV_DIRECTMAP_END	(RISCV_DIRECTMAP_START + RISCV_DIRECTMAP_SIZE)
+#define RISCV_DIRECTMAP_P(va)	\
+	((vaddr_t)(va) - RISCV_DIRECTMAP_START < RISCV_DIRECTMAP_SIZE)
+#define RISCV_PA_TO_KVA(pa)	((vaddr_t) ((paddr_t)(pa) + kern_vtopdiff))
+#define RISCV_KVA_TO_PA(va)	((paddr_t) ((vaddr_t)(va) - kern_vtopdiff))
 #endif
 
 /*

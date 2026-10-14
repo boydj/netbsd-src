@@ -64,33 +64,55 @@ static pt_entry_t pmap_pte_nc __read_mostly;
 static pt_entry_t pmap_pte_io __read_mostly;
 #endif
 
+void (*riscv_icache_sync_all_hook)(void);
+void (*riscv_icache_sync_range_hook)(paddr_t, psize_t);
+
+void
+riscv_icache_sync_all(void)
+{
+	__asm __volatile("fence\trw,rw" ::: "memory");
+	if (riscv_icache_sync_all_hook != NULL)
+		(*riscv_icache_sync_all_hook)();
+	__asm __volatile("fence.i" ::: "memory");
+}
+
+void
+pmap_md_page_syncicache(struct vm_page_md *mdpg, const kcpuset_t *onproc)
+{
+	__asm __volatile("fence\trw,rw" ::: "memory");
+	if (riscv_icache_sync_range_hook != NULL) {
+		struct vm_page * const pg = VM_MD_TO_PAGE(mdpg);
+
+		(*riscv_icache_sync_range_hook)(VM_PAGE_TO_PHYS(pg), PAGE_SIZE);
+	}
+	__asm __volatile("fence.i" ::: "memory");
+}
+
+#ifndef _LP64
+static inline void
+pmap_md_check_direct_pa(paddr_t pa)
+{
+	KASSERTMSG(RISCV_DIRECTMAP_P(RISCV_PA_TO_KVA(pa)),
+	    "pa %#" PRIxPADDR " outside of the kernel window", pa);
+}
+#else
+#define	pmap_md_check_direct_pa(pa)	__nothing
+#endif
+
 void
 pmap_zero_page(paddr_t pa)
 {
-#ifdef _LP64
-#ifdef PMAP_DIRECT_MAP
+	pmap_md_check_direct_pa(pa);
 	memset((void *)PMAP_DIRECT_MAP(pa), 0, PAGE_SIZE);
-#else
-#error "no direct map"
-#endif
-#else
-	KASSERT(false);
-#endif
 }
 
 void
 pmap_copy_page(paddr_t src, paddr_t dst)
 {
-#ifdef _LP64
-#ifdef PMAP_DIRECT_MAP
+	pmap_md_check_direct_pa(src);
+	pmap_md_check_direct_pa(dst);
 	memcpy((void *)PMAP_DIRECT_MAP(dst), (const void *)PMAP_DIRECT_MAP(src),
 	    PAGE_SIZE);
-#else
-#error "no direct map"
-#endif
-#else
-	KASSERT(false);
-#endif
 }
 
 #ifdef _LP64
@@ -116,11 +138,8 @@ pmap_md_alloc_poolpage(int flags)
 vaddr_t
 pmap_md_map_poolpage(paddr_t pa, vsize_t len)
 {
-#ifdef _LP64
+	pmap_md_check_direct_pa(pa);
 	return PMAP_DIRECT_MAP(pa);
-#else
-	panic("not supported");
-#endif
 }
 
 void
@@ -133,11 +152,7 @@ pmap_md_unmap_poolpage(vaddr_t pa, vsize_t len)
 bool
 pmap_md_direct_mapped_vaddr_p(vaddr_t va)
 {
-#ifdef _LP64
 	return RISCV_DIRECTMAP_P(va);
-#else
-	return false;
-#endif
 }
 
 bool
@@ -149,27 +164,14 @@ pmap_md_io_vaddr_p(vaddr_t va)
 paddr_t
 pmap_md_direct_mapped_vaddr_to_paddr(vaddr_t va)
 {
-#ifdef _LP64
-#ifdef PMAP_DIRECT_MAP
 	return PMAP_DIRECT_UNMAP(va);
-#else
-	KASSERT(false);
-	return 0;
-#endif
-#else
-	KASSERT(false);
-	return 0;
-#endif
 }
 
 vaddr_t
 pmap_md_direct_map_paddr(paddr_t pa)
 {
-#ifdef _LP64
+	pmap_md_check_direct_pa(pa);
 	return PMAP_DIRECT_MAP(pa);
-#else
-	panic("not supported");
-#endif
 }
 
 void
@@ -249,7 +251,6 @@ pmap_md_grow(pmap_pdetab_t *ptb, vaddr_t va, vsize_t vshift,
     vsize_t *remaining)
 {
 	KASSERT((va & (NBSEG - 1)) == 0);
-#ifdef _LP64
 	const vaddr_t pdetab_mask = PMAP_PDETABSIZE - 1;
 	const vsize_t vinc = 1UL << vshift;
 
@@ -284,7 +285,6 @@ pmap_md_grow(pmap_pdetab_t *ptb, vaddr_t va, vsize_t vshift,
 		if (*remaining == 0)
 			return;
 	}
-#endif
 }
 
 void

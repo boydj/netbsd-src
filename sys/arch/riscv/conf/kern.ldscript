@@ -6,7 +6,16 @@ OUTPUT_ARCH(riscv)
 ENTRY(start)
 
 __PAGE_SIZE = 0x1000 ;
+#ifdef _LP64
 __LARGE_PAGE_SIZE = 0x200000 ;
+#else
+/*
+ * Sv32 megapages are 4MiB and the kernel is mapped with RWX megapages, so
+ * there is nothing to gain from padding the sections (which costs a lot of
+ * memory on small RV32 systems).
+ */
+__LARGE_PAGE_SIZE = 0x1000 ;
+#endif
 
 SECTIONS
 {

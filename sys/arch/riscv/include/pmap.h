@@ -111,11 +111,21 @@ struct pmap_md {
 	paddr_t md_ppn;
 };
 
+/*
+ * Instruction cache synchronization.  fence.i is enough on most harts, but
+ * some SoCs (e.g. Espressif ESP32-S31) have split, non-coherent caches
+ * outside the hart that need a platform (SBI) operation.  Platforms may
+ * register hooks for that; they take physical addresses.
+ */
+extern void (*riscv_icache_sync_all_hook)(void);
+extern void (*riscv_icache_sync_range_hook)(paddr_t, psize_t);
+void	riscv_icache_sync_all(void);
+
 #define	PMAP_NEED_PROCWR
 static inline void
 pmap_procwr(struct proc *p, vaddr_t va, vsize_t len)
 {
-	__asm __volatile("fence\trw,rw; fence.i" ::: "memory");
+	riscv_icache_sync_all();
 }
 
 
@@ -161,7 +171,6 @@ void	pmap_bootstrap(vaddr_t, vaddr_t);
 
 vsize_t	pmap_kenter_range(vaddr_t, paddr_t, vsize_t, vm_prot_t, u_int);
 
-#ifdef _LP64
 extern vaddr_t pmap_direct_base;
 extern vaddr_t pmap_direct_end;
 #define	PMAP_DIRECT_MAP(pa)	RISCV_PA_TO_KVA(pa)
@@ -173,7 +182,6 @@ extern vaddr_t pmap_direct_end;
 #define	POOL_PHYSTOV(pa)	RISCV_PA_TO_KVA((paddr_t)(pa))
 #define	POOL_VTOPHYS(va)	RISCV_KVA_TO_PA((vaddr_t)(va))
 
-#endif	/* _LP64 */
 
 #define	MEGAPAGE_TRUNC(x)	((x) & ~SEGOFSET)
 #define	MEGAPAGE_ROUND(x)	MEGAPAGE_TRUNC((x) + SEGOFSET)
@@ -207,11 +215,7 @@ pmap_md_tlb_check_entry(void *ctx, vaddr_t va, tlb_asid_t asid, pt_entry_t pte)
 	return false;
 }
 
-static inline void
-pmap_md_page_syncicache(struct vm_page_md *mdpg, const kcpuset_t *onproc)
-{
-	__asm __volatile("fence\trw,rw; fence.i" ::: "memory");
-}
+void	pmap_md_page_syncicache(struct vm_page_md *, const kcpuset_t *);
 
 /*
  * Virtual Cache Alias helper routines.  Not a problem for RISC-V CPUs.

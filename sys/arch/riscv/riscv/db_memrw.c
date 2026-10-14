@@ -34,6 +34,7 @@
 __RCSID("$NetBSD: db_memrw.c,v 1.1 2024/11/23 12:03:55 skrll Exp $");
 
 #include <sys/param.h>
+#include <uvm/uvm_extern.h>
 
 #include <riscv/db_machdep.h>
 
@@ -93,5 +94,5 @@ db_write_bytes(vaddr_t addr, size_t len, const char *data)
 		KASSERT(len == 1);
 		*(uint8_t *)addr = *(const uint8_t *) data;
 	}
-	__asm("fence rw,rw; fence.i");
+	riscv_icache_sync_all();
 }

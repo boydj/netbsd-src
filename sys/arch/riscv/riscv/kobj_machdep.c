@@ -34,6 +34,7 @@
 __RCSID("$NetBSD: kobj_machdep.c,v 1.6 2024/01/18 03:36:24 msaitoh Exp $");
 
 #include <sys/param.h>
+#include <uvm/uvm_extern.h>
 #include <sys/systm.h>
 #include <sys/kobj_impl.h>
 #include <sys/kobj.h>
@@ -545,7 +546,7 @@ int
 kobj_machdep(kobj_t ko, void *base, size_t size, bool load)
 {
 	if (load)
-		__asm("fence rw,rw; fence.i");
+		riscv_icache_sync_all();
 
 	return 0;
 }
