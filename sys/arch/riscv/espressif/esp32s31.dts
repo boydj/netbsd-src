@@ -214,5 +214,36 @@
 			interrupts = <33 4>;		/* IRQ_TYPE_LEVEL_HIGH */
 			interrupt-names = "target0";
 		};
+
+		/* HP_ALIVE_SYS: USB PHY power and line state, among others */
+		hp_alive_sys: syscon@20589000 {
+			compatible = "esp,esp32s31-hp-alive-sys", "syscon";
+			reg = <0x20589000 0x100>;
+		};
+
+		usb_phy: usb-phy@20380000 {
+			compatible = "esp,esp32s31-usb-phy";
+			reg = <0x20380000 0x20>;
+			#phy-cells = <0>;
+			clocks = <&clkrst 9>;		/* USB_OTGHS_PHYREF */
+			clock-names = "ref";
+			esp,hp-alive-sys = <&hp_alive_sys>;
+			esp,cnnt-sys = <&cnnt_sys>;
+		};
+
+		/* USB 2.0 OTG-HS: a DesignWare HS OTG controller, host mode */
+		usb: usb@20300000 {
+			compatible = "esp,esp32s31-hsotg", "snps,dwc2";
+			reg = <0x20300000 0x40000>;
+			interrupt-parent = <&intmtx>;
+			interrupts = <99 4>;
+			clocks = <&clkrst 8>;		/* USB_OTGHS_BUS */
+			clock-names = "otg";
+			resets = <&clkrst 4>;		/* USB_OTGHS */
+			reset-names = "dwc2";
+			phys = <&usb_phy>;
+			phy-names = "usb2-phy";
+			dr_mode = "host";
+		};
 	};
 };
