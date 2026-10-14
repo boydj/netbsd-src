@@ -46,6 +46,10 @@ cons=$(sysctl -n kern.consdev 2>/dev/null)
 # adapters plugged in later.  dhcpcd goes to the background at once, so a
 # missing cable doesn't hold up the login prompt.
 ifconfig lo0 inet 127.0.0.1 up
+# No IPv4 duplicate address detection, as with Linux and lwIP: it costs
+# seconds per address, and NAT gateways that answer ARP for every address
+# (some emulators' user-mode networking) would make it drop the lease.
+sysctl -qw net.inet.ip.dad_count=0
 mkdir -p /var/db/dhcpcd /var/run/dhcpcd /var/spool/lock
 dhcpcd -q -b
 

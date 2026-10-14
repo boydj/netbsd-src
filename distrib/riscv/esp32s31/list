@@ -81,6 +81,7 @@ PROG	usr/bin/tip	usr/bin/cu
 PROG	usr/bin/tset	usr/bin/reset
 PROG	usr/bin/uname
 PROG	usr/bin/fptest
+PROG	usr/sbin/sntpdate
 PROG	usr/bin/uniq
 PROG	usr/bin/vi	usr/bin/ex usr/bin/view
 PROG	usr/bin/vmstat
@@ -100,6 +101,7 @@ PROG	usr/libexec/getty
 SPECIAL	awk	srcdir	external/historical/nawk/bin
 SPECIAL	vi	srcdir	external/bsd/nvi/usr.bin/nvi
 SPECIAL	fptest	srcdir	distrib/riscv/esp32s31/fptest
+SPECIAL	sntpdate	srcdir	distrib/riscv/esp32s31/sntpdate
 SPECIAL	dhcpcd	srcdir	distrib/riscv/esp32s31/x_dhcpcd
 SPECIAL	ftp	srcdir	distrib/riscv/esp32s31/x_ftp
 SPECIAL	ifconfig	srcdir	distrib/utils/x_ifconfig
@@ -127,6 +129,7 @@ COPY	${NETBSDSRCDIR}/etc/protocols		etc/protocols
 COPY	${DESTDIR}/libexec/dhcpcd-run-hooks	libexec/dhcpcd-run-hooks 555
 COPY	${DESTDIR}/libexec/dhcpcd-hooks/20-resolv.conf libexec/dhcpcd-hooks/20-resolv.conf
 COPY	${DESTDIR}/libexec/dhcpcd-hooks/30-hostname libexec/dhcpcd-hooks/30-hostname
+COPY	${CURDIR}/etc/50-sntpdate		libexec/dhcpcd-hooks/50-sntpdate
 
 # The root is read-only: dhcpcd's resolv.conf lives on tmpfs
 SYMLINK	/var/run/resolv.conf		etc/resolv.conf

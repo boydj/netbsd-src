@@ -32,6 +32,7 @@ IMAGEDEPENDS=	${CRUNCHBIN} \
 		${.CURDIR}/etc/master.passwd ${.CURDIR}/etc/motd \
 		${.CURDIR}/etc/profile ${.CURDIR}/etc/fstab \
 		${.CURDIR}/etc/hosts ${.CURDIR}/etc/dhcpcd.conf \
+		${.CURDIR}/etc/50-sntpdate \
 		${DESTDIR}/libexec/dhcpcd-run-hooks \
 		${NETBSDSRCDIR}/etc/group
 

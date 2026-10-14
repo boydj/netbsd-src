@@ -1,0 +1,11 @@
+# $NetBSD$
+#
+# Set the clock once the network is up; the ESP32-S31 has no RTC.  Try
+# the DHCP server's NTP servers, then pool.ntp.org, then the router.
+
+case "$reason" in
+BOUND|REBOOT|RENEW|REBIND)
+	( sntpdate $new_ntp_servers pool.ntp.org $new_routers \
+	    > /var/run/sntpdate.log 2>&1 & )
+	;;
+esac
