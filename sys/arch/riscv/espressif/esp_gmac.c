@@ -304,8 +304,12 @@ esp_gmac_attach(device_t parent, device_t self, void *aux)
 
 	sc->sc_set_speed = esp_gmac_set_speed;
 	dwc_gmac_preattach_fdt(phandle, sc);
-	if (of_hasprop(phandle, "snps,force_thresh_dma_mode"))
-		sc->sc_flags |= DWC_GMAC_FORCE_THRESH_DMA_MODE;
+	/*
+	 * The S31's GMAC is built with enhanced descriptors.  Like
+	 * Espressif's Linux glue, don't rely on the HW feature register
+	 * to say so.
+	 */
+	sc->sc_flags |= DWC_GMAC_ENH_DESC;
 
 	/*
 	 * MDC must stay at or below 2.5MHz; the largest CSR clock divider is
