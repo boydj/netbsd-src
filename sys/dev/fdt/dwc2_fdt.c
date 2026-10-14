@@ -65,6 +65,7 @@ static void dwc2_fdt_attach(device_t, device_t, void *);
 static void dwc2_fdt_deferred(device_t);
 
 static void dwc2_fdt_amlogic_params(struct dwc2_fdt_softc *, struct dwc2_core_params *);
+static void dwc2_fdt_esp32s31_params(struct dwc2_fdt_softc *, struct dwc2_core_params *);
 static void dwc2_fdt_rockchip_params(struct dwc2_fdt_softc *, struct dwc2_core_params *);
 
 struct dwc2_fdt_config {
@@ -79,6 +80,10 @@ static const struct dwc2_fdt_config dwc2_fdt_meson8b_config = {
 	.params = dwc2_fdt_amlogic_params,
 };
 
+static const struct dwc2_fdt_config dwc2_fdt_esp32s31_config = {
+	.params = dwc2_fdt_esp32s31_params,
+};
+
 static const struct dwc2_fdt_config dwc2_fdt_generic_config = {
 };
 
@@ -89,6 +94,8 @@ static const struct device_compatible_entry compat_data[] = {
 	  .data = &dwc2_fdt_meson8b_config },
 	{ .compat = "rockchip,rk3066-usb",
 	  .data = &dwc2_fdt_rk3066_config },
+	{ .compat = "esp,esp32s31-hsotg",
+	  .data = &dwc2_fdt_esp32s31_config },
 	{ .compat = "snps,dwc2",
 	  .data = &dwc2_fdt_generic_config },
 
@@ -118,6 +125,7 @@ dwc2_fdt_attach(device_t parent, device_t self, void *aux)
 	    of_compatible_lookup(phandle, compat_data)->data;
 	char intrstr[128];
 	struct fdtbus_phy *phy;
+	struct fdtbus_reset *rst;
 	struct clk *clk;
 	bus_addr_t addr;
 	bus_size_t size;
@@ -137,6 +145,13 @@ dwc2_fdt_attach(device_t parent, device_t self, void *aux)
 	clk = fdtbus_clock_get(phandle, "otg");
 	if (clk == NULL || clk_enable(clk) != 0) {
 		aprint_error(": couldn't enable otg clock\n");
+		return;
+	}
+
+	/* Take the controller out of its optional reset */
+	rst = fdtbus_reset_get(phandle, "dwc2");
+	if (rst && fdtbus_reset_deassert(rst) != 0) {
+		aprint_error(": couldn't de-assert reset\n");
 		return;
 	}
 
@@ -226,6 +241,24 @@ dwc2_fdt_amlogic_params(struct dwc2_fdt_softc *sc, struct dwc2_core_params *para
 	params->phy_type = DWC2_PHY_TYPE_PARAM_UTMI;
 	params->reload_ctl = 1;
 	params->ahbcfg = GAHBCFG_HBSTLEN_INCR8 << GAHBCFG_HBSTLEN_SHIFT;
+#ifdef DWC2_POWER_DOWN_PARAM_NONE
+	params->power_down = DWC2_POWER_DOWN_PARAM_NONE;
+#endif
+}
+
+static void
+dwc2_fdt_esp32s31_params(struct dwc2_fdt_softc *sc, struct dwc2_core_params *params)
+{
+	dwc2_set_all_params(params, -1);
+
+	params->otg_cap = DWC2_CAP_PARAM_NO_HNP_SRP_CAPABLE;
+	params->speed = DWC2_SPEED_PARAM_HIGH;
+	params->host_rx_fifo_size = 512;
+	params->host_nperio_tx_fifo_size = 256;
+	params->host_perio_tx_fifo_size = 128;
+	params->phy_type = DWC2_PHY_TYPE_PARAM_UTMI;
+	params->i2c_enable = 0;
+	params->ahbcfg = GAHBCFG_HBSTLEN_INCR16 << GAHBCFG_HBSTLEN_SHIFT;
 #ifdef DWC2_POWER_DOWN_PARAM_NONE
 	params->power_down = DWC2_POWER_DOWN_PARAM_NONE;
 #endif

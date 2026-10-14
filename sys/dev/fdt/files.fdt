@@ -202,7 +202,7 @@ attach	xhci at fdt with cdns3_fdt: fdt_phy
 file	dev/fdt/cdns3_fdt.c			cdns3_fdt
 
 # Designware USB2 OTG
-attach	dwctwo at fdt with dwc2_fdt: fdt, fdt_clock, fdt_phy
+attach	dwctwo at fdt with dwc2_fdt: fdt, fdt_clock, fdt_phy, fdt_reset
 file	dev/fdt/dwc2_fdt.c			dwc2_fdt
 
 # Designware USB3 XHCI
