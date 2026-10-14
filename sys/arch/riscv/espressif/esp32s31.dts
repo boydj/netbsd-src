@@ -30,6 +30,12 @@
 		clock-frequency = <40000000>;
 	};
 
+	mpll_clk: clock-mpll {
+		compatible = "fixed-clock";
+		#clock-cells = <0>;
+		clock-frequency = <500000000>;
+	};
+
 	cpus {
 		#address-cells = <1>;
 		#size-cells = <0>;
@@ -101,12 +107,103 @@
 		};
 
 		/*
-		 * Root file system at flash offset 0x800000, read through the
+		 * Root file system at flash offset 0x900000, read through the
 		 * XIP window (which maps flash 0x100000 and up at 0x40000000).
 		 */
-		rootfs: flash@40700000 {
+		rootfs: flash@40800000 {
 			compatible = "espressif,esp32s31-xip-rootfs";
-			reg = <0x40700000 0x00800000>;
+			reg = <0x40800000 0x00700000>;
+		};
+
+		/*
+		 * Clock gates and resets in HP_SYS_CLKRST and CNNT_SYS; the
+		 * cells are Espressif's dt-bindings ids.
+		 */
+		clkrst: clock-controller@20587000 {
+			compatible = "espressif,esp32s31-clkrst";
+			reg = <0x20587000 0x400>, <0x20359000 0x100>;
+			clocks = <&xtal_clk>, <&mpll_clk>;
+			clock-names = "xtal", "mpll";
+			#clock-cells = <1>;
+			#reset-cells = <1>;
+		};
+
+		/* Connectivity system registers (EMAC/USB/SDIO glue) */
+		cnnt_sys: syscon@20359000 {
+			compatible = "espressif,esp32s31-cnnt-sys", "syscon";
+			reg = <0x20359000 0x100>;
+		};
+
+		/* IO_MUX, GPIO + GPIO matrix, CNNT dedicated pads */
+		gpio: pinctrl@20582000 {
+			compatible = "espressif,esp32s31-gpio";
+			reg = <0x20582000 0x100>, <0x20583000 0xe00>,
+			      <0x20588000 0x400>;
+			clocks = <&clkrst 0>, <&clkrst 1>;
+			clock-names = "apb", "iomux";
+			gpio-controller;
+			#gpio-cells = <2>;
+			/* flash/PSRAM, USB PHY, console */
+			gpio-reserved-ranges = <26 7>, <33 2>, <58 2>;
+
+			/* pinmux = <(pin << 16) | function> */
+			emac_pins: emac-pins {
+				pinmux = <0x050005>,	/* GPIO5  MDC */
+					 <0x060006>,	/* GPIO6  MDIO */
+					 <0x080004>,	/* GPIO8-12 TXD0-3, TX_CTL */
+					 <0x090004>,
+					 <0x0a0004>,
+					 <0x0b0004>,
+					 <0x0c0004>,
+					 <0x0d0004>,	/* GPIO13 TX_CLK */
+					 <0x0e0004>,	/* GPIO14-19 RX_CLK, RX_CTL, RXD3-0 */
+					 <0x0f0004>,
+					 <0x100004>,
+					 <0x110004>,
+					 <0x120004>,
+					 <0x130004>;
+				input-enable;
+				bias-disable;
+				drive-strength = <20>;
+			};
+		};
+
+		/*
+		 * Ethernet: DesignWare GMAC 3.70a, RGMII to a Motorcomm YT8531
+		 * on Espressif's dev board.  DMA is not cache coherent.
+		 */
+		emac: ethernet@20350000 {
+			compatible = "espressif,esp32s31-dwmac", "snps,dwmac-3.70a";
+			reg = <0x20350000 0x2000>;
+			interrupt-parent = <&intmtx>;
+			interrupts = <98 4>;
+			clocks = <&clkrst 6>, <&clkrst 7>, <&clkrst 10>;
+			clock-names = "stmmaceth", "ref", "ptp_ref";
+			resets = <&clkrst 3>;
+			reset-names = "stmmaceth";
+			espressif,cnnt-sys = <&cnnt_sys>;
+			snps,force_thresh_dma_mode;
+			snps,txpbl = <32>;
+			snps,rxpbl = <8>;
+			snps,no-pbl-x8;
+			snps,mixed-burst;
+			phy-mode = "rgmii-id";
+			pinctrl-names = "default";
+			pinctrl-0 = <&emac_pins>;
+			max-speed = <100>;
+
+			mdio {
+				compatible = "snps,dwmac-mdio";
+				#address-cells = <1>;
+				#size-cells = <0>;
+
+				ethernet-phy@0 {
+					reg = <0>;
+					reset-gpios = <&gpio 7 1>;	/* active low */
+					reset-assert-us = <10000>;
+					reset-deassert-us = <500000>;
+				};
+			};
 		};
 
 		systimer: timer@20399000 {

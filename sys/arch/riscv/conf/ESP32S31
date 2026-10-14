@@ -43,6 +43,10 @@ options 	USERCONF
 options 	PIPE_SOCKETPAIR		# smaller, but slower pipe(2)
 
 # File systems
+# Networking
+options 	INET			# IPv4
+options 	INET6			# IPv6
+
 file-system 	FFS		# UFS
 file-system 	TMPFS		# Efficient memory file-system
 file-system 	KERNFS		# /kern
@@ -71,6 +75,7 @@ cpu*		at fdt? pass 0
 
 fclock*		at fdt? pass 1
 
+espclkrst*	at fdt? pass 1		# clock gates and resets
 espclic*	at fdt? pass 1		# CLIC, S-mode bank
 espintmtx*	at fdt? pass 2		# interrupt matrix
 espsystimer*	at fdt? pass 3		# SYSTIMER: timecounter and clock
@@ -78,6 +83,16 @@ espuart*	at fdt?			# UART
 esptrng*	at fdt?			# true random number generator
 espxiproot*	at fdt?			# root file system in SPI flash
 
+espgpio*	at fdt? pass 2		# GPIO and pin multiplexing
+gpio*		at gpiobus?
+
+# Ethernet: DesignWare GMAC, Motorcomm YT8531 PHY on the dev board
+awge*		at fdt?
+mcommphy*	at mii? phy ?
+ukphy*		at mii? phy ?
+
+pseudo-device	loop			# network loopback
+pseudo-device	bpfilter		# packet filter (dhcpcd)
 pseudo-device	pty			# pseudo-terminals
 pseudo-device	clockctl		# user control of clock subsystem
 pseudo-device	ksyms			# /dev/ksyms

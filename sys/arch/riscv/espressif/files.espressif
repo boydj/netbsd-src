@@ -33,3 +33,17 @@ file	arch/riscv/espressif/esp_trng.c		esp_trng
 device	espxiproot
 attach	espxiproot at fdt with esp_xiproot
 file	arch/riscv/espressif/esp_xiproot.c	esp_xiproot
+
+# Clock gates and resets
+device	espclkrst: fdt_clock, fdt_reset
+attach	espclkrst at fdt with esp_clkrst
+file	arch/riscv/espressif/esp_clkrst.c	esp_clkrst
+
+# GPIO and pin multiplexing
+device	espgpio: gpiobus, fdt_gpio, fdt_clock, fdt_pinctrl
+attach	espgpio at fdt with esp_gpio
+file	arch/riscv/espressif/esp_gpio.c		esp_gpio
+
+# Ethernet (DesignWare GMAC 3.70a, dwc_gmac(4))
+attach	awge at fdt with esp_gmac: fdt_clock, fdt_gpio, fdt_pinctrl, fdt_reset, dwc_gmac_fdt_subr
+file	arch/riscv/espressif/esp_gmac.c		esp_gmac

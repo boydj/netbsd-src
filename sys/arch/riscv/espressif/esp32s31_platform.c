@@ -40,8 +40,8 @@
  *  - the time CSR is emulated by OpenSBI and stops in wfi: the SYSTIMER
  *    peripheral is used for timekeeping;
  *  - the caches are outside of the hart, non-coherent, and not reached by
- *    fence.i: instruction cache maintenance is done by OpenSBI through a
- *    vendor SBI extension.
+ *    fence.i: instruction cache maintenance, and data cache maintenance
+ *    for DMA, are done by OpenSBI through a vendor SBI extension.
  */
 
 #include <sys/cdefs.h>
@@ -50,6 +50,7 @@ __KERNEL_RCSID(0, "$NetBSD$");
 #include <sys/param.h>
 #include <sys/bus.h>
 #include <sys/cpu.h>
+#include <sys/proc.h>
 #include <sys/systm.h>
 
 #include <dev/fdt/fdtvar.h>
@@ -58,6 +59,7 @@ __KERNEL_RCSID(0, "$NetBSD$");
 #include <uvm/uvm_extern.h>
 #include <uvm/pmap/pmap_devmap.h>
 
+#include <machine/cpufunc.h>
 #include <machine/machdep.h>
 #include <machine/sbi.h>
 
@@ -102,6 +104,50 @@ esp32s31_icache_sync_all(void)
 	(void)esp32s31_sbi_vendor_call(S31_SBI_ICACHE_SYNC, 0, 0);
 }
 
+/*
+ * Data cache maintenance for DMA (bus_dma(9) maps are non-coherent: the
+ * peripherals' AXI masters don't snoop the cache).  The vendor SBI calls
+ * take physical ranges, so walk the virtual range page by page.  Only the
+ * PSRAM is cached memory a device would DMA to.
+ */
+static void
+esp32s31_dcache_op(int fid, vaddr_t va, vsize_t len)
+{
+	pmap_t pm = pmap_kernel();
+
+	if (va < VM_MIN_KERNEL_ADDRESS && curproc != NULL)
+		pm = vm_map_pmap(&curproc->p_vmspace->vm_map);
+
+	while (len > 0) {
+		const vsize_t n = MIN(len, PAGE_SIZE - (va & PAGE_MASK));
+		paddr_t pa;
+
+		if (pmap_extract(pm, va, &pa) && pa >= S31_PSRAM_BASE &&
+		    pa - S31_PSRAM_BASE < S31_PSRAM_SIZE)
+			(void)esp32s31_sbi_vendor_call(fid, pa, n);
+		va += n;
+		len -= n;
+	}
+}
+
+static void
+esp32s31_dcache_wb_range(vaddr_t va, vsize_t len)
+{
+	esp32s31_dcache_op(S31_SBI_CACHE_WBACK, va, len);
+}
+
+static void
+esp32s31_dcache_inv_range(vaddr_t va, vsize_t len)
+{
+	esp32s31_dcache_op(S31_SBI_CACHE_INVAL, va, len);
+}
+
+static void
+esp32s31_dcache_wbinv_range(vaddr_t va, vsize_t len)
+{
+	esp32s31_dcache_op(S31_SBI_CACHE_WBACK_INVAL, va, len);
+}
+
 static const struct pmap_devmap *
 esp32s31_platform_devmap(void)
 {
@@ -142,6 +188,17 @@ esp32s31_platform_bootstrap(void)
 	if (esp32s31_sbi_vendor_eid != -1) {
 		riscv_icache_sync_range_hook = esp32s31_icache_sync_range;
 		riscv_icache_sync_all_hook = esp32s31_icache_sync_all;
+
+		cpu_dcache_wb_range = esp32s31_dcache_wb_range;
+		cpu_dcache_inv_range = esp32s31_dcache_inv_range;
+		cpu_dcache_wbinv_range = esp32s31_dcache_wbinv_range;
+		/*
+		 * Partial lines are written back before an invalidate; assume
+		 * the larger of the external cache's line sizes so that is
+		 * always safe.
+		 */
+		riscv_dcache_align = 128;
+		riscv_dcache_align_mask = 128 - 1;
 	}
 
 	/* delay(9) works from here on. */
