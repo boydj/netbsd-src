@@ -95,6 +95,11 @@ device	espcrypto: opencrypto
 attach	espcrypto at fdt with esp_crypto
 file	arch/riscv/espressif/esp_crypto.c	esp_crypto
 
+# Analog comparator
+device	espcmpr: sysmon_envsys
+attach	espcmpr at fdt with esp_cmpr
+file	arch/riscv/espressif/esp_cmpr.c		esp_cmpr
+
 # Watchdog (timer group 1)
 device	espwdt: sysmon_wdog
 attach	espwdt at fdt with esp_wdt

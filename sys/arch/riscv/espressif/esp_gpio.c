@@ -90,6 +90,8 @@ __KERNEL_RCSID(0, "$NetBSD$");
 #include <dev/fdt/fdtvar.h>
 #include <dev/gpio/gpiovar.h>
 
+#include <riscv/espressif/esp32s31_var.h>
+
 #define	ESP_GPIO_NPINS		62
 #define	CTL_CREATE_PIN_BASE	1000	/* sysctl node numbers of pinN */
 
@@ -185,6 +187,8 @@ struct esp_matrix_func {
 
 static const struct esp_matrix_func esp_matrix_funcs[] = {
 	{ "gpio",	-1, SIG_GPIO_OUT, 0 },
+	/* input buffer, pulls and output off: for the ADC and comparator */
+	{ "analog",	-1,  -1, 0 },
 	{ "uart1_txd",	-1,  13, 0 },
 	{ "uart1_rxd",	13,  -1, MF_PU },
 	{ "uart1_rts",	-1,  14, 0 },
@@ -288,6 +292,9 @@ struct esp_gpio_softc {
 	char			*sc_funclist;
 	size_t			sc_funclistlen;
 };
+
+static struct esp_gpio_softc *esp_gpio_sc;
+
 
 struct esp_gpio_pin {
 	struct esp_gpio_softc	*pin_sc;
@@ -435,12 +442,37 @@ esp_gpio_func_name(struct esp_gpio_softc *sc, u_int pin)
 
 		if (out != SIG_GPIO_OUT && f->mf_out == (int)out)
 			return f->mf_name;
-		if (out == SIG_GPIO_OUT && f->mf_out < 0 &&
+		if (out == SIG_GPIO_OUT && f->mf_out < 0 && f->mf_in >= 0 &&
 		    RD(sc, sc_gpio, GPIO_FUNC_IN_SEL(f->mf_in)) ==
 		    (pin | GPIO_SIG_IN_SEL))
 			return f->mf_name;
 	}
+	if ((RD(sc, sc_iomux, IOMUX_PAD(pin)) & IOMUX_FUN_IE) == 0 &&
+	    (RD(sc, sc_gpio, GPIO_ENABLE(pin / 32)) & (1U << (pin % 32))) == 0)
+		return "analog";
 	return "gpio";
+}
+
+/*
+ * For other drivers: give a pin a function by name ("analog" for the
+ * comparator's pads).
+ */
+int
+esp_gpio_set_function(u_int pin, const char *name)
+{
+	struct esp_gpio_softc * const sc = esp_gpio_sc;
+	const struct esp_matrix_func *mf;
+
+	if (sc == NULL)
+		return ENXIO;
+	if (!esp_gpio_usable(sc, pin))
+		return EBUSY;
+	if ((mf = esp_gpio_func_lookup(name)) == NULL)
+		return EINVAL;
+	mutex_enter(&sc->sc_lock);
+	esp_gpio_route(sc, pin, mf);
+	mutex_exit(&sc->sc_lock);
+	return 0;
 }
 
 static int
@@ -806,6 +838,8 @@ esp_gpio_attach(device_t parent, device_t self, void *aux)
 		    pin < ESP_GPIO_NPINS; pin++)
 			sc->sc_reserved |= 1ULL << pin;
 	}
+
+	esp_gpio_sc = sc;
 
 	/* The IO_MUX itself must be clocked and out of reset. */
 	fdtbus_clock_enable(phandle, "apb", false);

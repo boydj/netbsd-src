@@ -108,7 +108,8 @@ __KERNEL_RCSID(0, "$NetBSD$");
 #define	CLK_DS			39
 #define	CLK_HMAC		40
 #define	CLK_ECDSA		41
-#define	CLK_NUM			42
+#define	CLK_ZERO_DET		42	/* analog comparator */
+#define	CLK_NUM			43
 
 /* Reset ids */
 #define	RST_IOMUX		0
@@ -143,7 +144,8 @@ __KERNEL_RCSID(0, "$NetBSD$");
 #define	RST_DS			31
 #define	RST_HMAC		32
 #define	RST_ECDSA		33
-#define	RST_NUM			34
+#define	RST_ZERO_DET		34
+#define	RST_NUM			35
 
 /* HP_SYS_CLKRST */
 #define	HP_CRYPTO_CTRL0		0x058
@@ -199,6 +201,13 @@ __KERNEL_RCSID(0, "$NetBSD$");
 #define	 TIMERGRP_RST_EN	__BIT(1)
 #define	 TIMERGRP_WDT_CLK_EN	__BIT(11)
 #define	HP_MCPWM_CTRL0(n)	(0x124 + 4 * (n))
+#define	HP_ZERO_DET_CTRL0	0x1b8
+#define	 ZERO_DET_APB_CLK_EN	__BIT(0)
+#define	 ZERO_DET_APB_RST_EN	__BIT(1)
+#define	 ZERO_DET_CLK_EN	__BIT(2)
+#define	 ZERO_DET_CORE_RST_EN	__BIT(3)
+#define	 ZERO_DET_CLK_SRC_SEL	__BITS(6, 5)
+#define	 ZERO_DET_CLK_DIV_NUM	__BITS(14, 7)
 #define	 MCPWM_APB_CLK_EN	__BIT(0)
 #define	 MCPWM_RST_EN		__BIT(1)
 #define	 MCPWM_CLK_SRC_SEL	__BITS(4, 3)	/* XTAL, RC_FAST, PLL_F160M */
@@ -436,6 +445,9 @@ static const struct esp_clk esp_clks[CLK_NUM] = {
 	    MCPWM_CLK_DIV_NUM, MCPWM_CLK_SRC_SEL, mux_xtal_rcfast_f160m, 0),
 	MCLK(CLK_MCPWM3, "mcpwm3", MAP_HP, HP_MCPWM_CTRL0(3), MCPWM_GATES,
 	    MCPWM_CLK_DIV_NUM, MCPWM_CLK_SRC_SEL, mux_xtal_rcfast_f160m, 0),
+	MCLK(CLK_ZERO_DET, "zero_det", MAP_HP, HP_ZERO_DET_CTRL0,
+	    ZERO_DET_APB_CLK_EN | ZERO_DET_CLK_EN, ZERO_DET_CLK_DIV_NUM,
+	    ZERO_DET_CLK_SRC_SEL, mux_xtal_rcfast_f80m, 0),
 };
 
 static const struct esp_rst esp_rsts[RST_NUM] = {
@@ -471,6 +483,8 @@ static const struct esp_rst esp_rsts[RST_NUM] = {
 	[RST_MCPWM1] = { MAP_HP, HP_MCPWM_CTRL0(1), MCPWM_RST_EN },
 	[RST_MCPWM2] = { MAP_HP, HP_MCPWM_CTRL0(2), MCPWM_RST_EN },
 	[RST_MCPWM3] = { MAP_HP, HP_MCPWM_CTRL0(3), MCPWM_RST_EN },
+	[RST_ZERO_DET] = { MAP_HP, HP_ZERO_DET_CTRL0,
+	    ZERO_DET_APB_RST_EN | ZERO_DET_CORE_RST_EN },
 };
 
 static const struct device_compatible_entry compat_data[] = {

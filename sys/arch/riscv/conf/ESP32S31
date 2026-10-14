@@ -89,6 +89,7 @@ espnor*	at fdt?			# writable SPI flash partition (/persist)
 espwdt*		at fdt?			# watchdog (wdogctl)
 esprtc*		at fdt?			# RTC timer: time of day across resets
 espcrypto*	at fdt?			# AES, SHA, RSA accelerators
+espcmpr*	at fdt?			# analog comparator (envstat)
 pseudo-device	crypto			# /dev/crypto
 pseudo-device	swcrypto		# software algorithms for opencrypto
 

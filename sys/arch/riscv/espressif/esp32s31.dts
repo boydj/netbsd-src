@@ -143,6 +143,14 @@
 				      "ds", "hmac", "ecdsa";
 		};
 
+		/* Analog comparator: GPIO37-40, off until configured */
+		comparator@2039a000 {
+			compatible = "espressif,esp32s31-ana-cmpr";
+			reg = <0x2039a000 0x400>;
+			clocks = <&clkrst 42>;
+			resets = <&clkrst 34>;
+		};
+
 		/* Main system watchdog of timer group 1 */
 		watchdog@20581000 {
 			compatible = "espressif,esp32s31-mwdt";
