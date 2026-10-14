@@ -16,5 +16,7 @@ nl_langinfo(nl_item what)
 {
 	if (what == CODESET)
 		return "ASCII";
+	if (what == RADIXCHAR)
+		return ".";
 	return "";
 }

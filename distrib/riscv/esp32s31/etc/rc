@@ -1,0 +1,33 @@
+#!/bin/sh
+#
+# /etc/rc for the ESP32-S31 root file system.
+#
+# The root is an in-kernel memory disk; keep the writable bits on tmpfs.
+#
+
+PATH=/sbin:/bin:/usr/sbin:/usr/bin
+export PATH
+
+stty status '^T'
+
+echo "Starting NetBSD on the Espressif ESP32-S31"
+
+mount -u -o rw / 2>/dev/null
+mount -t tmpfs -o -s2M tmpfs /tmp
+mount -t tmpfs -o -s1M tmpfs /var
+mkdir -p /var/run /var/log /var/tmp /var/db
+chmod 1777 /tmp /var/tmp
+mount -t kernfs kernfs /kern
+mount -t procfs procfs /proc
+mount -t ptyfs ptyfs /dev/pts
+
+hostname esp32s31
+: > /var/run/utmpx
+: > /var/log/wtmpx
+
+dmesg > /var/run/dmesg.boot
+
+echo
+uname -a
+echo
+exit 0

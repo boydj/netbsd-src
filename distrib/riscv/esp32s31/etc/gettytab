@@ -1,0 +1,9 @@
+#	$NetBSD$
+#
+# Minimal gettytab for the ESP32-S31 serial console.
+#
+default:\
+	:np:im=\r\n\r\nNetBSD/%m (%h) (%t)\r\n\r\n:sp#115200:
+
+std.115200|115200-baud:\
+	:np:sp#115200:

@@ -1,0 +1,6 @@
+
+Welcome to NetBSD on the Espressif ESP32-S31!
+
+  RV32IMAC + Sv32 MMU, 16 MiB PSRAM, running out of an in-kernel memory
+  disk.  /tmp and /var are tmpfs; changes are lost at reset.
+

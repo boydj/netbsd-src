@@ -1,0 +1,6 @@
+PATH=/sbin:/bin:/usr/sbin:/usr/bin
+export PATH
+TERM=${TERM:-vt100}
+export TERM
+PS1="esp32s31# "
+export PS1
