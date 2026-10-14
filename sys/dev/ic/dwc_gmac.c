@@ -254,7 +254,8 @@ dwc_gmac_attach(struct dwc_gmac_softc *sc, int phy_id, uint32_t mii_clk)
 		}
 	}
 
-	if (hwft & GMAC_DMA_FEAT_ENHANCED_DESC) {
+	if ((hwft & GMAC_DMA_FEAT_ENHANCED_DESC) != 0 ||
+	    (sc->sc_flags & DWC_GMAC_ENH_DESC) != 0) {
 		aprint_normal_dev(sc->sc_dev,
 		    "Using enhanced descriptor format\n");
 		sc->sc_descm = &desc_methods_enhanced;

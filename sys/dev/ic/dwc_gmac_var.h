@@ -100,6 +100,9 @@ struct dwc_gmac_softc {
 #define	DWC_GMAC_FIXED_BURST		__BIT(1)/* fixed burst bus mode */
 #define	DWC_GMAC_NO_PBL_X8		__BIT(2)/* burst lengths are PBL, not 8x */
 #define	DWC_GMAC_MIXED_BURST		__BIT(3)/* mixed burst bus mode */
+#define	DWC_GMAC_ENH_DESC		__BIT(4)/* enhanced descriptors, even if
+						   the HW feature register
+						   doesn't say so */
 	struct ethercom sc_ec;
 	struct mii_data sc_mii;
 	kmutex_t sc_mdio_lock;
