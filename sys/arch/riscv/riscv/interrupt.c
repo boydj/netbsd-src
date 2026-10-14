@@ -112,12 +112,21 @@ cpu_intr(struct trapframe *tf, register_t epc, register_t status,
 }
 
 
+/*
+ * The PLIC is optional (e.g. CLIC based systems don't have one).
+ */
+void *plic_intr_establish_xname(u_int, int, int, int (*)(void *), void *,
+    const char *) __weak;
+
 void *
 intr_establish_xname(int irq, int ipl, int type, int (*func)(void *), void *arg,
     const char *xname)
 {
 	KASSERT(!cpu_intr_p());
 	KASSERT(!cpu_softintr_p());
+
+	if (plic_intr_establish_xname == NULL)
+		return NULL;
 
 	return plic_intr_establish_xname(irq, ipl, type, func, arg, xname);
 }
