@@ -1091,6 +1091,8 @@ crypto_kregister(uint32_t driverid, int kalg, uint32_t flags,
 		err = 0;
 	} else
 		err = SET_ERROR(EINVAL);
+	if (cap != NULL)
+		crypto_driver_unlock(cap);
 
 	mutex_exit(&crypto_drv_mtx);
 	return err;
