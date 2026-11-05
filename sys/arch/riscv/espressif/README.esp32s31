@@ -124,7 +124,7 @@ PHY reset GPIO, the factory MAC address from eFuse, and the reference
 clock following the link speed.  The dev board's PHY is a Motorcomm
 YT8531 (mcommphy(4)).
 
-USB.  The OTG-HS controller is a DesignWare HS OTG in host mode,
+USB.  The OTG-HS controller is a DesignWare HS OTG 4.30a in host mode,
 dwctwo(4), with espusbphy powering the UTMI PHY.  The kernel has USB
 mass storage, serial and Ethernet adapters, and ugen.
 
@@ -229,9 +229,11 @@ talks to it, as to a Wi-Fi/Bluetooth module on a bus:
 
 The firmware is a single-core ESP-IDF build (esp32s31-netbsd: espcp/) with
 a small patch so that it leaves the host's hardware alone: it believes it
-is core 0 but routes interrupts to hart 1, ticks from systimer alarm 1
+is core 0 (FreeRTOS's FPU trap path too) but routes interrupts to hart 1, ticks from systimer alarm 1
 without resetting the systimer, has no flash driver, and stops its hart
-instead of resetting the chip when it panics.  Stopping hart 1 is in the
+instead of resetting the chip when it panics.  Its start-up does what the
+radio needs of ESP-IDF's chip set-up: hart 1's PMA, which the ROM leaves
+read-only over PSRAM, pmu_init() and the Wi-Fi LP clock.  Stopping hart 1 is in the
 shutdown hooks, so a warm reboot doesn't leave it running (power-off
 leaves it be, as it is what powers the chip down).  As in ESP-IDF,
 the eFuse MAC address is the base of four: Wi-Fi, soft-AP, Bluetooth and
@@ -240,8 +242,15 @@ then Ethernet (awge).
 Status and limitations
 ----------------------
 
-Tested in a QEMU model of the chip and in Espressif's esp-emulator, which
-runs the real mask ROM.  Not yet tested on silicon.  esp-emulator runs the
+Runs on an ESP32-S31-Function-CoreBoard-1 (chip revision v0.0): multi-user
+boot from a power cycle, the FPU, both consoles, /persist, the crypto
+self-tests, and Wi-Fi including association, DHCP and traffic.  On that
+board, Bluetooth doesn't work yet (the controller initialises, then
+btconfig up times out), dwcmmc(4) times out updating its clock, and the
+other new drivers have attached but not been exercised.
+
+Also tested in a QEMU model of the chip and in Espressif's esp-emulator,
+which runs the real mask ROM.  esp-emulator runs the
 real Wi-Fi firmware on hart 1 (association with WPA3, DHCP, traffic) and
 models the crypto engines, flash writes, I2C, SPI, the watchdog and the
 temperature sensor; its Bluetooth emulation only intercepts the
