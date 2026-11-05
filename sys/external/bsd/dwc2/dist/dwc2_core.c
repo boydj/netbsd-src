@@ -524,42 +524,66 @@ static void dwc2_wait_for_mode(struct dwc2_hsotg *hsotg,
  * Do core a soft reset of the core.  Be careful with this because it
  * resets all the internal state machines of the core.
  */
+/*
+ * Wait up to 10ms for GRSTCTL bits to be all set (or all clear).  The old
+ * 50us limit is too short for some cores; Linux has used 10ms for years.
+ */
+static int dwc2_grstctl_wait(struct dwc2_hsotg *hsotg, u32 mask, bool set,
+			     const char *what)
+{
+	u32 greset = 0;
+	int count;
+
+	for (count = 0; count < 10000; count++) {
+		greset = DWC2_READ_4(hsotg, GRSTCTL);
+		if ((greset & mask) == (set ? mask : 0))
+			return 0;
+		udelay(1);
+	}
+	aprint_error_dev(hsotg->dev, "core reset: timeout on %s, GRSTCTL=%08x\n",
+	    what, greset);
+	return -EBUSY;
+}
+
+/*
+ * Core Soft Reset.  From release 4.20a CSFTRST no longer clears itself:
+ * the core sets CSFTRST_DONE, and software clears CSFTRST and acknowledges
+ * DONE (the DONE bit is write-1-to-clear).
+ */
 int dwc2_core_reset(struct dwc2_hsotg *hsotg)
 {
+	const u32 snpsid = DWC2_READ_4(hsotg, GSNPSID);
 	u32 greset;
-	int count = 0;
+	int retval;
 
 	dev_vdbg(hsotg->dev, "%s()\n", __func__);
 
-	/* Core Soft Reset */
+	retval = dwc2_grstctl_wait(hsotg, GRSTCTL_AHBIDLE, true, "AHB idle");
+	if (retval)
+		return retval;
+
 	greset = DWC2_READ_4(hsotg, GRSTCTL);
 	greset |= GRSTCTL_CSFTRST;
 	DWC2_WRITE_4(hsotg, GRSTCTL, greset);
-	do {
-		udelay(1);
-		greset = DWC2_READ_4(hsotg, GRSTCTL);
-		if (++count > 50) {
-			dev_warn(hsotg->dev,
-				 "%s() HANG! Soft Reset GRSTCTL=%0x\n",
-				 __func__, greset);
-			return -EBUSY;
-		}
-	} while (greset & GRSTCTL_CSFTRST);
 
-	/* Wait for AHB master IDLE state */
-	count = 0;
-	do {
-		udelay(1);
+	if ((snpsid & DWC2_CORE_REV_MASK) <
+	    (DWC2_CORE_REV_4_20a & DWC2_CORE_REV_MASK)) {
+		retval = dwc2_grstctl_wait(hsotg, GRSTCTL_CSFTRST, false,
+		    "CSFTRST clear");
+		if (retval)
+			return retval;
+	} else {
+		retval = dwc2_grstctl_wait(hsotg, GRSTCTL_CSFTRST_DONE, true,
+		    "CSFTRST_DONE");
+		if (retval)
+			return retval;
 		greset = DWC2_READ_4(hsotg, GRSTCTL);
-		if (++count > 50) {
-			dev_warn(hsotg->dev,
-				 "%s() HANG! AHB Idle GRSTCTL=%0x\n",
-				 __func__, greset);
-			return -EBUSY;
-		}
-	} while (!(greset & GRSTCTL_AHBIDLE));
+		greset &= ~GRSTCTL_CSFTRST;
+		greset |= GRSTCTL_CSFTRST_DONE;
+		DWC2_WRITE_4(hsotg, GRSTCTL, greset);
+	}
 
-	return 0;
+	return dwc2_grstctl_wait(hsotg, GRSTCTL_AHBIDLE, true, "AHB idle");
 }
 
 /*
@@ -3355,12 +3379,12 @@ int dwc2_get_hwparams(struct dwc2_hsotg *hsotg)
 	/*
 	 * Attempt to ensure this device is really a DWC_otg Controller.
 	 * Read and verify the GSNPSID register contents. The value should be
-	 * 0x45f42xxx or 0x45f43xxx, which corresponds to either "OT2" or "OT3",
-	 * as in "OTG version 2.xx" or "OTG version 3.xx".
+	 * "OT" followed by the release, or the ID of an FS or HS IoT core.
 	 */
 	hw->snpsid = DWC2_READ_4(hsotg, GSNPSID);
-	if ((hw->snpsid & 0xfffff000) != 0x4f542000 &&
-	    (hw->snpsid & 0xfffff000) != 0x4f543000) {
+	if ((hw->snpsid & DWC2_ID_MASK) != DWC2_OTG_ID &&
+	    (hw->snpsid & DWC2_ID_MASK) != DWC2_FS_IOT_ID &&
+	    (hw->snpsid & DWC2_ID_MASK) != DWC2_HS_IOT_ID) {
 		dev_err(hsotg->dev, "Bad value for GSNPSID: 0x%08x\n",
 			hw->snpsid);
 		return -ENODEV;

@@ -120,6 +120,7 @@
 #define GRSTCTL				HSOTG_REG(0x010)
 #define GRSTCTL_AHBIDLE			(1u << 31)
 #define GRSTCTL_DMAREQ			(1 << 30)
+#define GRSTCTL_CSFTRST_DONE		(1 << 29)
 #define GRSTCTL_TXFNUM_MASK		(0x1f << 6)
 #define GRSTCTL_TXFNUM_SHIFT		6
 #define GRSTCTL_TXFNUM_LIMIT		0x1f

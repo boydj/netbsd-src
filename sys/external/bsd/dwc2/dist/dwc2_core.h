@@ -739,6 +739,14 @@ struct dwc2_hsotg {
 #define DWC2_CORE_REV_2_92a	0x4f54292a
 #define DWC2_CORE_REV_2_94a	0x4f54294a
 #define DWC2_CORE_REV_3_00a	0x4f54300a
+#define DWC2_CORE_REV_4_20a	0x4f54420a
+#define DWC2_CORE_REV_MASK	0x0000ffff
+
+	/* GSNPSID product IDs: "OT", and the FS and HS IoT cores */
+#define DWC2_ID_MASK		0xffff0000
+#define DWC2_OTG_ID		0x4f540000
+#define DWC2_FS_IOT_ID		0x55310000
+#define DWC2_HS_IOT_ID		0x55320000
 
 #if IS_ENABLED(CONFIG_USB_DWC2_HOST) || IS_ENABLED(CONFIG_USB_DWC2_DUAL_ROLE)
 	union dwc2_hcd_internal_flags {
