@@ -98,7 +98,6 @@ __KERNEL_RCSID(0, "$NetBSD: mcommphy.c,v 1.6 2025/11/30 07:12:03 skrll Exp $");
 #define  YT8531_RGMII_RXC_DS_MASK	__BITS(15, 13)
 #define  YT8531_RGMII_RXD_DS_HIMASK	__BIT(12)
 #define  YT8531_RGMII_RXD_DS_LOMASK	__BITS(5, 4)
-#define  YT8531_RGMII_RX_DS_DEFAULT	0x3
 #define YT8531_RGMII_RXD_DS_MASK \
     (YT8531_RGMII_RXD_DS_HIMASK | YT8531_RGMII_RXD_DS_LOMASK)
 
@@ -566,8 +565,9 @@ mcommphyattach(device_t parent, device_t self, void *aux)
 	case YT8521:
 	case YT8531:
 		/* Default values */
-		msc->sc_rx_clk_drv_microamp = YT8531_RGMII_RX_DS_DEFAULT;
-		msc->sc_rx_data_drv_microamp = YT8531_RGMII_RX_DS_DEFAULT;
+		/* 0 uA: not specified, use YT8531_DEFAULT_DS */
+		msc->sc_rx_clk_drv_microamp = 0;
+		msc->sc_rx_data_drv_microamp = 0;
 		msc->sc_rx_internal_delay_ps = YT8521_DELAY_DEFAULT;
 		msc->sc_tx_internal_delay_ps = YT8521_DELAY_DEFAULT;
 
